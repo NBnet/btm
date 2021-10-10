@@ -1,0 +1,15 @@
+[package]
+name = "btm"
+version = "0.1.0"
+edition = "2018"
+
+keywords = ["version-control", "zfs", "btrfs", "blockchain"]
+
+license = "MIT"
+authors = ["FindoraNetwork"]
+description = "Blockchain Time Machine"
+homepage = "https://github.com/FindoraNetwork/btm"
+repository = "https://github.com/FindoraNetwork/btm.git"
+
+[dependencies]
+ruc = "0.6.2"
