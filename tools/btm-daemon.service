@@ -1,0 +1,10 @@
+[Unit]
+Description="btm daemon"
+After=network.target
+
+[Service]
+# NOTE: replace all UPPER words to their actual instances
+ExecStart=/usr/local/bin/btm daemon --snapshot-target=TARGET --snapshot-itv=ITV --snapshot-cap=CAP --snapshot-mode=MODE --snapshot-algo=ALGO
+
+[Install]
+WantedBy=multi-user.target

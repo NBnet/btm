@@ -19,7 +19,7 @@ test:
 	cargo test -- --test-threads=1
 
 fmt:
-	cargo fmt
+	sh tools/fmt.sh
 
 clean:
 	cargo clean
