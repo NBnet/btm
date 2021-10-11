@@ -1,9 +1,9 @@
-use crate::{util::exec_output, SnapAlgo, SnapCfg, STEP_CNT};
-use ruc::*;
+use crate::{BtmCfg, SnapAlgo, STEP_CNT};
+use ruc::{cmd::exec_output, *};
 use std::path::PathBuf;
 
 #[inline(always)]
-pub(crate) fn gen_snapshot(cfg: &SnapCfg, idx: u64) -> Result<()> {
+pub(crate) fn gen_snapshot(cfg: &BtmCfg, idx: u64) -> Result<()> {
     clean_outdated(cfg).c(d!())?;
     let cmd = format!(
         "
@@ -15,7 +15,7 @@ pub(crate) fn gen_snapshot(cfg: &SnapCfg, idx: u64) -> Result<()> {
     exec_output(&cmd).c(d!()).map(|_| ())
 }
 
-pub(crate) fn sorted_snapshots(cfg: &SnapCfg) -> Result<Vec<u64>> {
+pub(crate) fn sorted_snapshots(cfg: &BtmCfg) -> Result<Vec<u64>> {
     let cmd = format!(
         r"btrfs subvolume list -so {} | grep -o '@[0-9]\+$' | sed 's/@//'",
         PathBuf::from(&cfg.target)
@@ -35,7 +35,7 @@ pub(crate) fn sorted_snapshots(cfg: &SnapCfg) -> Result<Vec<u64>> {
     Ok(res)
 }
 
-pub(crate) fn rollback(cfg: &SnapCfg, idx: Option<u64>, strict: bool) -> Result<()> {
+pub(crate) fn rollback(cfg: &BtmCfg, idx: Option<u64>, strict: bool) -> Result<()> {
     let mut snaps = sorted_snapshots(cfg).c(d!())?;
     // convert to AESC order for `binary_search`
     snaps.reverse();
@@ -86,14 +86,14 @@ pub(crate) fn check(target: &str) -> Result<()> {
 }
 
 #[inline(always)]
-fn clean_outdated(cfg: &SnapCfg) -> Result<()> {
+fn clean_outdated(cfg: &BtmCfg) -> Result<()> {
     match cfg.algo {
         SnapAlgo::Fair => clean_outdated_fair(cfg).c(d!()),
         SnapAlgo::Fade => clean_outdated_fade(cfg).c(d!()),
     }
 }
 
-fn clean_outdated_fair(cfg: &SnapCfg) -> Result<()> {
+fn clean_outdated_fair(cfg: &BtmCfg) -> Result<()> {
     let snaps = sorted_snapshots(cfg).c(d!())?;
     let cap = cfg.get_cap() as usize;
 
@@ -128,7 +128,7 @@ fn clean_outdated_fair(cfg: &SnapCfg) -> Result<()> {
 //
 // 2. clean up snapshot whose indexs exceed `cap`
 // > this means we can use 100 snapshots to cover 55_5500 blocks
-fn clean_outdated_fade(cfg: &SnapCfg) -> Result<()> {
+fn clean_outdated_fade(cfg: &BtmCfg) -> Result<()> {
     let snaps = sorted_snapshots(cfg).c(d!())?;
     let cap = cfg.get_cap() as usize;
 

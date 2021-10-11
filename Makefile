@@ -1,5 +1,7 @@
 all: pack
 
+export CARGO_NET_GIT_FETCH_WITH_CLI = true
+
 BUILD_DIR = build_dir
 PACK_DIR = /tmp/btm.package
 PACK_TARGET= btm.tar.gz
@@ -34,6 +36,9 @@ pack: release_musl
 	@ tar -zcpf $(PACK_TARGET) $(PACK_DIR)
 	@ echo -e "\n\033[31;01mbuild path:\033[0m $(BUILD_DIR)"
 	@ echo -e "\033[31;01mpackage path:\033[0m $(PACK_TARGET)\n"
+
+update:
+	cargo update
 
 clean:
 	cargo clean

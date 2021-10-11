@@ -11,7 +11,8 @@
 
 mod api;
 mod driver;
-mod util;
+
+pub use api::server::run_daemon;
 
 use driver::{btrfs, external, zfs};
 use ruc::*;
@@ -24,7 +25,7 @@ pub const CAP_MAX: u64 = 1000;
 pub const STEP_CNT: usize = 10;
 
 /// Config structure of snapshot
-pub struct SnapCfg {
+pub struct BtmCfg {
     /// a global switch for enabling snapshot functions
     pub enable: bool,
     /// interval between adjacent snapshots, default to 10 blocks
@@ -39,9 +40,9 @@ pub struct SnapCfg {
     pub target: String,
 }
 
-impl Default for SnapCfg {
+impl Default for BtmCfg {
     fn default() -> Self {
-        SnapCfg {
+        BtmCfg {
             enable: false,
             itv: 10,
             cap: 100,
@@ -52,14 +53,25 @@ impl Default for SnapCfg {
     }
 }
 
-impl SnapCfg {
+impl BtmCfg {
     /// create a simple instance
     #[inline(always)]
     pub fn new() -> Self {
-        SnapCfg {
+        Self::new_enabled()
+    }
+
+    #[inline(always)]
+    fn new_enabled() -> Self {
+        BtmCfg {
             enable: true,
             ..Self::default()
         }
+    }
+
+    /// Used in client side
+    #[inline(always)]
+    pub fn new_client_hdr() -> Self {
+        Self::new_enabled()
     }
 
     /// generate a snapshot for the latest state of blockchain
