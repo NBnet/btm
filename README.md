@@ -3,9 +3,22 @@
 ![GitHub issues](https://img.shields.io/github/issues-raw/FindoraNetwork/btm)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/FindoraNetwork/btm)
 
-# btm
+# BTM
 
 Blockchain Time Machine.
+
+BTM is an incremental data backup mechanism that does not require downtime.
+
+## Why would you need this?
+
+btm will give you the following abilities or advantages:
+
+- fall back to the data state of a desired block height instantly
+- the atomicity of snapshot data can be guaranteed
+- hot backup during operation, no downtime is needed
+- based on OS-level infrastructure, stable and reliable
+- very small resource usage, almost no performance damage
+- ...
 
 ## User Instructions
 
@@ -86,12 +99,12 @@ su # swith your user account to 'root'
 ```shell
 ● btm-daemon.service - "btm daemon"
      Loaded: loaded (/lib/systemd/system/btm-daemon.service; enabled; vendor preset: disabled)
-     Active: active (running) since Tue 2021-10-12 21:23:09 CST; 19min ago
-   Main PID: 374946 (btm)
-      Tasks: 1 (limit: 38448)
-        CPU: 781us
+     Active: active (running) since Tue 2021-10-12 21:24:16 CST; 2min 27s ago
+   Main PID: 334 (btm)
+      Tasks: 1 (limit: 37805)
+        CPU: 1ms
      CGroup: /system.slice/btm-daemon.service
-             └─374946 /usr/local/bin/btm daemon -p=zfs/findora -i=10 -c=100 -m=zfs -a=fade
+             └─334 /usr/local/bin/btm daemon -p=/data/findora -i=4 -c=100 -m=btrfs -a=fade
 ```
 
 **Usage of [tools/install.sh](./tools/install.sh):**

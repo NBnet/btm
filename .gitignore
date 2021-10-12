@@ -12,3 +12,5 @@ Cargo.lock
 *.tar.gz
 build_dir
 btm_package
+
+nohup.out
