@@ -3,16 +3,18 @@
 //!
 
 use crate::{
-    api::{
-        model::{Req, Resp},
-        SERVER_US,
-    },
+    api::model::{Req, Resp, SERVER_US_ADDR},
     BtmCfg,
 };
-use ruc::*;
+use lazy_static::lazy_static;
+use ruc::{uau::UauSock, *};
+
+lazy_static! {
+    static ref SERVER_US: UauSock = pnk!(UauSock::new(SERVER_US_ADDR, None));
+}
 
 /// Run `btm daemon ...` server
-pub fn run_daemon(cfg: &BtmCfg) -> Result<()> {
+pub fn run_daemon(cfg: BtmCfg) -> Result<()> {
     loop {
         if let Ok((msg, peer)) = SERVER_US.recv_128() {
             if let Ok(r) = info!(serde_json::from_slice::<Req>(&msg)) {

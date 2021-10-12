@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 /// SEE: [UAU](ruc::uau::UauSock)
 pub(crate) const SERVER_US_ADDR: &[u8] = b"b1ce842e9f6e96d36287c8cfece722d";
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Req {
     idx: u64,
 }
@@ -27,7 +27,7 @@ impl Req {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Resp {
     idx: u64,
     success: bool,

@@ -1,10 +1,10 @@
 all: pack
 
-export CARGO_NET_GIT_FETCH_WITH_CLI = true
-
-BUILD_DIR = build_dir
+BUILD_DIR = target
 PACK_DIR = /tmp/btm.package
 PACK_TARGET= btm.tar.gz
+
+export CARGO_NET_GIT_FETCH_WITH_CLI = true
 
 release:
 	@ cargo build --release --bins --target-dir=$(BUILD_DIR)

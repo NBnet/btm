@@ -1,16 +1,22 @@
 use crate::{
-    api::model::{Req, Resp},
-    api::SERVER_US,
+    api::model::{Req, Resp, SERVER_US_ADDR},
     BtmCfg,
 };
-use ruc::{uau::UauSock, *};
+use lazy_static::lazy_static;
+use ruc::{
+    uau::{SockAddr, UauSock},
+    *,
+};
+
+lazy_static! {
+    static ref SERVER_PEER: SockAddr = pnk!(UauSock::addr_to_sock(SERVER_US_ADDR));
+}
 
 #[inline(always)]
 pub(crate) fn request_snapshot(_cfg: &BtmCfg, idx: u64) -> Result<()> {
     // set receive timeout to 500ms, aka 0.5second
     let cli = UauSock::gen(Some(500)).c(d!())?;
-    cli.send(&Req::new(idx).to_bytes(), SERVER_US.addr())
-        .c(d!())?;
+    cli.send(&Req::new(idx).to_bytes(), &SERVER_PEER).c(d!())?;
 
     // try at most 10 times
     for _ in 0..10 {

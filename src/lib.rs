@@ -25,6 +25,7 @@ pub const CAP_MAX: u64 = 1000;
 pub const STEP_CNT: usize = 10;
 
 /// Config structure of snapshot
+#[derive(Debug)]
 pub struct BtmCfg {
     /// a global switch for enabling snapshot functions
     pub enable: bool,
@@ -153,6 +154,7 @@ impl BtmCfg {
 /// rm -rf /btrfs/data || exit 1
 /// btrfs subvolume snapshot /btrfs/data@123456 /btrfs/data
 /// ```
+#[derive(Debug)]
 pub enum SnapMode {
     /// available on some Linux distributions and FreeBSD
     /// - Ubuntu Linux
