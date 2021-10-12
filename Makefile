@@ -1,8 +1,8 @@
 all: pack
 
 BUILD_DIR = target
-PACK_DIR = /tmp/btm.package
-PACK_TARGET= btm.tar.gz
+PACKAGE = btm_package
+PACKAGE_TARGET= $(PACKAGE).tar.gz
 
 export CARGO_NET_GIT_FETCH_WITH_CLI = true
 
@@ -28,21 +28,21 @@ fmt:
 	sh tools/fmt.sh
 
 pack: release_musl
-	@ rm -rf $(PACK_DIR)
-	@ mkdir -p $(PACK_DIR)
-	@ cp tools/install.sh $(PACK_DIR)/
-	@ cp tools/btm-daemon.service $(PACK_DIR)/
-	@ cp $(BUILD_DIR)/x86_64-unknown-linux-musl/release/btm $(PACK_DIR)/
-	@ tar -zcpf $(PACK_TARGET) $(PACK_DIR)
+	@ rm -rf $(PACKAGE)
+	@ mkdir -p $(PACKAGE)
+	@ cp tools/install.sh $(PACKAGE)/
+	@ cp tools/btm-daemon.service $(PACKAGE)/
+	@ cp $(BUILD_DIR)/x86_64-unknown-linux-musl/release/btm $(PACKAGE)/
+	@ tar -zcpf $(PACKAGE_TARGET) $(PACKAGE)
 	@ echo -e "\n\033[31;01mbuild path:\033[0m $(BUILD_DIR)"
-	@ echo -e "\033[31;01mpackage path:\033[0m $(PACK_TARGET)\n"
+	@ echo -e "\033[31;01mpackage path:\033[0m $(PACKAGE_TARGET)\n"
 
 update:
 	cargo update
 
 clean:
 	cargo clean
-	rm -rf $(BUILD_DIR) $(PACK_TARGET)
+	rm -rf $(BUILD_DIR) $(PACKAGE) $(PACKAGE_TARGET)
 
 cleanall: clean
 	git clean -fdx

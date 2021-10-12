@@ -23,7 +23,7 @@
 //!
 
 use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode, STEP_CNT};
-use clap::{crate_authors, App, Arg, ArgMatches, SubCommand};
+use clap::{crate_authors, crate_description, App, Arg, ArgMatches, SubCommand};
 use ruc::*;
 use std::{process::exit, str::FromStr};
 
@@ -122,23 +122,24 @@ fn check_rollback(m: &ArgMatches, cfg: &BtmCfg) -> Result<()> {
 
 fn parse_cmdline() -> ArgMatches<'static> {
     App::new("btm")
-                .author(crate_authors!())
-                .subcommand(
-                    SubCommand::with_name("daemon")
-                        .arg_from_usage("-p, --snapshot-target=[TargetPath] 'a data volume containing both ledger data and tendermint data'")
-                        .arg_from_usage("-i, --snapshot-itv=[Iterval] 'interval between adjacent snapshots, default to 10 blocks'")
-                        .arg_from_usage("-c, --snapshot-cap=[Capacity] 'the maximum number of snapshots that will be stored, default to 100'")
-                        .arg_from_usage("-m --snapshot-mode=[Mode] 'zfs/btrfs/external, will try a guess if missing'")
-                        .arg_from_usage("-a, --snapshot-algo=[Algo] 'fair/fade, default to `fair`'")
-                )
+        .about(crate_description!())
+        .author(crate_authors!())
+        .subcommand(
+            SubCommand::with_name("daemon")
                 .arg_from_usage("-p, --snapshot-target=[TargetPath] 'a data volume containing both ledger data and tendermint data'")
-                .arg_from_usage("-l, --snapshot-list 'list all available snapshots in the form of block height'")
-                .arg_from_usage("-x, --snapshot-rollback 'rollback to the last available snapshot'")
-                .arg_from_usage("-r, --snapshot-rollback-to=[Height] 'rollback to a custom height, will try the closest smaller height if the target does not exist'")
-                .arg_from_usage("-R, --snapshot-rollback-to-exact=[Height] 'rollback to a custom height exactly, an error will be reported if the target does not exist'")
-                .arg(Arg::with_name("_a").long("ignored").hidden(true))
-                .arg(Arg::with_name("_b").long("nocapture").hidden(true))
-                .arg(Arg::with_name("_c").long("test-threads").hidden(true))
-                .arg(Arg::with_name("INPUT").multiple(true).hidden(true))
-                .get_matches()
+                .arg_from_usage("-i, --snapshot-itv=[Iterval] 'interval between adjacent snapshots, default to 10 blocks'")
+                .arg_from_usage("-c, --snapshot-cap=[Capacity] 'the maximum number of snapshots that will be stored, default to 100'")
+                .arg_from_usage("-m --snapshot-mode=[Mode] 'zfs/btrfs/external, will try a guess if missing'")
+                .arg_from_usage("-a, --snapshot-algo=[Algo] 'fair/fade, default to `fair`'")
+        )
+        .arg_from_usage("-p, --snapshot-target=[TargetPath] 'a data volume containing both ledger data and tendermint data'")
+        .arg_from_usage("-l, --snapshot-list 'list all available snapshots in the form of block height'")
+        .arg_from_usage("-x, --snapshot-rollback 'rollback to the last available snapshot'")
+        .arg_from_usage("-r, --snapshot-rollback-to=[Height] 'rollback to a custom height, will try the closest smaller height if the target does not exist'")
+        .arg_from_usage("-R, --snapshot-rollback-to-exact=[Height] 'rollback to a custom height exactly, an error will be reported if the target does not exist'")
+        .arg(Arg::with_name("_a").long("ignored").hidden(true))
+        .arg(Arg::with_name("_b").long("nocapture").hidden(true))
+        .arg(Arg::with_name("_c").long("test-threads").hidden(true))
+        .arg(Arg::with_name("INPUT").multiple(true).hidden(true))
+        .get_matches()
 }

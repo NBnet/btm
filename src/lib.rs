@@ -19,7 +19,7 @@ use ruc::*;
 use std::str::FromStr;
 
 /// Maximum number of snapshots that can be kept
-pub const CAP_MAX: u64 = 1000;
+pub const CAP_MAX: u64 = 4096;
 
 /// `itv.pow(i)`, only useful in `SnapAlgo::Fade` alfo
 pub const STEP_CNT: usize = 10;
