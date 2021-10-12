@@ -143,4 +143,7 @@ cp -f x.service ${target_path}/btm-daemon.service || exit 1
 
 cp -f btm /usr/local/bin/ || exit 1
 
+systemctl disable btm-daemon.service
 systemctl enable btm-daemon.service
+systemctl restart btm-daemon.service
+systemctl status btm-daemon.service

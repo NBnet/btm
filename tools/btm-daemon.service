@@ -3,7 +3,10 @@ Description="btm daemon"
 After=network.target
 
 [Service]
-# NOTE: replace all UPPER words to their actual instances
+Restart=on-failure
+RestartSec=2s
+
+# NOTE: replace all 'UPPER' words to their actual instances
 ExecStart=/usr/local/bin/btm daemon -p=TARGET -i=ITV -c=CAP -m=MODE -a=ALGO
 
 [Install]
