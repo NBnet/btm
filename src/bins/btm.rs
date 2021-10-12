@@ -25,7 +25,7 @@
 use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode, STEP_CNT};
 use clap::{crate_authors, crate_description, App, Arg, ArgMatches, SubCommand};
 use ruc::*;
-use std::{process::exit, str::FromStr};
+use std::{env, process::exit, str::FromStr};
 
 fn main() {
     pnk!(run_btm(parse_cmdline()).c(d!()))
@@ -36,7 +36,11 @@ fn run_btm(m: ArgMatches) -> Result<()> {
 
     if let Some(sub_m) = m.subcommand_matches("daemon") {
         // this field should be parsed at the top
-        res.target = sub_m.value_of("snapshot-target").c(d!())?.to_owned();
+        res.target = sub_m
+            .value_of("snapshot-target")
+            .c(d!())
+            .map(|t| t.to_owned())
+            .or_else(|e| env::var("BTM_SNAPSHOT_TARGET").c(d!(e)))?;
 
         res.itv = sub_m
             .value_of("snapshot-itv")
@@ -66,7 +70,11 @@ fn run_btm(m: ArgMatches) -> Result<()> {
         run_daemon(res).c(d!())?;
     } else {
         // this field should be parsed at the top
-        res.target = m.value_of("snapshot-target").c(d!())?.to_owned();
+        res.target = m
+            .value_of("snapshot-target")
+            .c(d!())
+            .map(|t| t.to_owned())
+            .or_else(|e| env::var("BTM_SNAPSHOT_TARGET").c(d!(e)))?;
 
         // the guess should always success in this scene
         res.mode = res.guess_mode().c(d!())?;
