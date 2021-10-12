@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 #[inline(always)]
 pub(crate) fn gen_snapshot(cfg: &BtmCfg, idx: u64) -> Result<()> {
+    alt!(0 != idx % cfg.itv as u64, return Ok(()));
     clean_outdated(cfg).c(d!())?;
     let cmd = format!(
         "

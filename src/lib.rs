@@ -78,9 +78,7 @@ impl BtmCfg {
     /// generate a snapshot for the latest state of blockchain
     #[inline(always)]
     pub fn snapshot(&self, idx: u64) -> Result<()> {
-        alt!(!self.enable, return Ok(()));
-        alt!(0 != idx % self.itv as u64 || 0 == idx, return Ok(()));
-
+        alt!(!self.enable || 0 == idx, return Ok(()));
         match self.mode {
             SnapMode::Zfs => zfs::gen_snapshot(self, idx).c(d!()),
             SnapMode::Btrfs => btrfs::gen_snapshot(self, idx).c(d!()),
