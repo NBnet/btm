@@ -79,6 +79,10 @@ impl BtmCfg {
     #[inline(always)]
     pub fn snapshot(&self, idx: u64) -> Result<()> {
         alt!(!self.enable, return Ok(()));
+
+        // sync data to disk before snapshoting
+        nix::unistd::sync();
+
         match self.mode {
             SnapMode::Zfs => zfs::gen_snapshot(self, idx).c(d!()),
             SnapMode::Btrfs => btrfs::gen_snapshot(self, idx).c(d!()),
