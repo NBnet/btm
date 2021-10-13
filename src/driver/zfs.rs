@@ -3,7 +3,7 @@ use ruc::{cmd::exec_output, *};
 
 #[inline(always)]
 pub(crate) fn gen_snapshot(cfg: &BtmCfg, idx: u64) -> Result<()> {
-    alt!(0 != idx % cfg.itv as u64, return Ok(()));
+    alt!(0 != (u64::MAX - idx) % cfg.itv as u64, return Ok(()));
     clean_outdated(cfg).c(d!())?;
     let cmd = format!(
         "
@@ -130,7 +130,7 @@ fn clean_outdated_fade(cfg: &BtmCfg) -> Result<()> {
         };
 
         pair.0.iter().for_each(|n| {
-            if 0 != n % denominator as u64 {
+            if 0 != (u64::MAX - n) % denominator as u64 {
                 let cmd = format!("zfs destroy {}@{}", &cfg.target, n);
                 info_omit!(exec_output(&cmd));
             }
