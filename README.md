@@ -77,7 +77,8 @@ OPTIONS:
 **Steps:**
 
 ```shell
-make
+# Alternative operation: `make` from source code
+wget https://github.com/FindoraNetwork/btm/releases/download/v0.1/btm_package.tar.gz
 
 mv btm_package.tar.gz /tmp/
 cd /tmp/
