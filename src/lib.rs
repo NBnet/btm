@@ -16,7 +16,6 @@ pub use api::server::run_daemon;
 
 use driver::{btrfs, external, zfs};
 use ruc::*;
-use std::str::FromStr;
 
 /// Maximum number of snapshots that can be kept
 pub const CAP_MAX: u64 = 4096;
@@ -178,12 +177,10 @@ impl Default for SnapMode {
     }
 }
 
-impl FromStr for SnapMode {
-    type Err = Box<dyn RucError>;
-
+impl SnapMode {
     #[inline(always)]
     #[allow(missing_docs)]
-    fn from_str(m: &str) -> Result<Self> {
+    pub fn from_string(m: &str) -> Result<Self> {
         match m.to_lowercase().as_str() {
             "zfs" => Ok(Self::Zfs),
             "btrfs" => Ok(Self::Btrfs),
@@ -208,12 +205,10 @@ impl Default for SnapAlgo {
     }
 }
 
-impl FromStr for SnapAlgo {
-    type Err = Box<dyn RucError>;
-
+impl SnapAlgo {
     #[inline(always)]
     #[allow(missing_docs)]
-    fn from_str(m: &str) -> Result<Self> {
+    pub fn from_string(m: &str) -> Result<Self> {
         match m.to_lowercase().as_str() {
             "fair" => Ok(Self::Fair),
             "fade" => Ok(Self::Fade),

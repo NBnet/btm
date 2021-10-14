@@ -25,7 +25,7 @@
 use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode, STEP_CNT};
 use clap::{crate_authors, crate_description, App, Arg, ArgMatches, SubCommand};
 use ruc::*;
-use std::{env, process::exit, str::FromStr};
+use std::{env, process::exit};
 
 fn main() {
     pnk!(run_btm(parse_cmdline()).c(d!()))
@@ -54,7 +54,7 @@ fn run_btm(m: ArgMatches) -> Result<()> {
             .c(d!())?;
 
         if let Some(sm) = sub_m.value_of("snapshot-mode") {
-            res.mode = SnapMode::from_str(sm).c(d!())?;
+            res.mode = SnapMode::from_string(sm).c(d!())?;
             if matches!(res.mode, SnapMode::External) {
                 return Err(eg!("Running `External` mode in `btm` is not allowed!"));
             }
@@ -63,7 +63,7 @@ fn run_btm(m: ArgMatches) -> Result<()> {
         }
 
         if let Some(sa) = sub_m.value_of("snapshot-algo") {
-            res.algo = SnapAlgo::from_str(sa).c(d!())?;
+            res.algo = SnapAlgo::from_string(sa).c(d!())?;
             res.itv.checked_pow(STEP_CNT as u32).c(d!())?;
         }
 
