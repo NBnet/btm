@@ -30,7 +30,7 @@ cd $EXEC_PATH || exit 1
 #         --snapshot-cap=100 \
 #         --snapshot-mode=zfs \
 #         --snapshot-algo=fade \
-#         --snapshot-target=zfs/data
+#         --snapshot-target=zfs/findora
 # ```
 #
 
@@ -53,13 +53,14 @@ usage() {
     echo -e "\t\t--snapshot-cap=100 \\"
     echo -e "\t\t--snapshot-mode=zfs \\"
     echo -e "\t\t--snapshot-algo=fade \\"
-    echo -e "\t\t--snapshot-target=zfs/data"
+    echo -e "\t\t--snapshot-target=zfs/findora"
 
     echo
 
     echo -e "\033[31;01mExample, short style\033[0m"
     echo
-    echo -e "\tinstall.sh -i=4 -c=100 -m=zfs -a=fade -t=zfs/data"
+    echo -e "\tinstall.sh -i=4 -c=100 -m=zfs -a=fade -p=zfs/findora"
+    echo -e "\tinstall.sh -i=4 -c=100 -m=btrfs -a=fade -p=/data/findora"
     echo
 }
 
@@ -77,7 +78,7 @@ for i in "$@"; do
         -a=*|--snapshot-algo=*)
             ALGO="${i#*=}"
             ;;
-        -t=*|--snapshot-target=*)
+        -p=*|--snapshot-target=*)
             TARGET="${i#*=}"
             ;;
         *)
