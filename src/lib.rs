@@ -99,7 +99,7 @@ impl BtmCfg {
         }
     }
 
-    /// Get snapshot list in desc order.
+    /// Get snapshot list in 'DESC' order.
     #[inline(always)]
     pub fn get_sorted_snapshots(&self) -> Result<Vec<u64>> {
         match self.mode {

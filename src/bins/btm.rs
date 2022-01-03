@@ -24,7 +24,7 @@
 
 use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode, STEP_CNT};
 use clap::{crate_authors, crate_description, App, Arg, ArgMatches, SubCommand};
-use ruc::*;
+use ruc::{cmd::exec_output, *};
 use std::{env, process::exit};
 
 fn main() {
@@ -81,7 +81,10 @@ fn run_btm(m: ArgMatches) -> Result<()> {
 
         if m.is_present("snapshot-list") {
             list_snapshots(&res).c(d!())?;
+        } else if m.is_present("snapshot-clean") {
+            clean_snapshots(&res).c(d!())?;
         }
+
         check_rollback(&m, &res).c(d!())?;
     }
 
@@ -96,6 +99,22 @@ fn list_snapshots(cfg: &BtmCfg) -> Result<()> {
         .rev()
         .for_each(|h| {
             println!("    {}", h);
+        });
+    exit(0);
+}
+
+fn clean_snapshots(cfg: &BtmCfg) -> Result<()> {
+    cfg.get_sorted_snapshots()
+        .c(d!())?
+        .into_iter()
+        .rev()
+        .for_each(|height| {
+            let cmd = match cfg.mode {
+                SnapMode::Btrfs => format!("btrfs subvolume delete {}@{}", &cfg.target, height),
+                SnapMode::Zfs => format!("zfs destroy {}@{}", &cfg.target, height),
+                _ => pnk!(Err(eg!("Unsupported deriver"))),
+            };
+            info_omit!(exec_output(&cmd));
         });
     exit(0);
 }
@@ -148,6 +167,7 @@ fn parse_cmdline() -> ArgMatches<'static> {
         .arg_from_usage("-x, --snapshot-rollback 'rollback to the last available snapshot'")
         .arg_from_usage("-r, --snapshot-rollback-to=[Height] 'rollback to a custom height, will try the closest smaller height if the target does not exist'")
         .arg_from_usage("-R, --snapshot-rollback-to-exact=[Height] 'rollback to a custom height exactly, an error will be reported if the target does not exist'")
+        .arg_from_usage("-C, --snapshot-clean 'clean up all existing snapshots'")
         .arg(Arg::with_name("_a").long("ignored").hidden(true))
         .arg(Arg::with_name("_b").long("nocapture").hidden(true))
         .arg(Arg::with_name("_c").long("test-threads").hidden(true))
