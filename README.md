@@ -1,7 +1,7 @@
-![](https://tokei.rs/b1/github/FindoraNetwork/btm)
-![GitHub top language](https://img.shields.io/github/languages/top/FindoraNetwork/btm)
-![GitHub issues](https://img.shields.io/github/issues-raw/FindoraNetwork/btm)
-![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/FindoraNetwork/btm)
+![](https://tokei.rs/b1/github/ccmlm/btm)
+![GitHub top language](https://img.shields.io/github/languages/top/ccmlm/btm)
+![GitHub issues](https://img.shields.io/github/issues-raw/ccmlm/btm)
+![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/ccmlm/btm)
 
 # BTM
 
@@ -26,14 +26,13 @@ btm will give you the following abilities or advantages:
 
 ```shell
 btm
-FindoraNetwork
-Blockchain Time Machine
 
 USAGE:
     btm [FLAGS] [OPTIONS] [SUBCOMMAND]
 
 FLAGS:
     -h, --help                 Prints help information
+    -C, --snapshot-clean       clean up all existing snapshots
     -l, --snapshot-list        list all available snapshots in the form of block height
     -x, --snapshot-rollback    rollback to the last available snapshot
     -V, --version              Prints version information
@@ -77,9 +76,7 @@ OPTIONS:
 **Steps:**
 
 ```shell
-# Alternative operation: `make` from source code
-wget https://github.com/FindoraNetwork/btm/releases/download/v0.1/btm_package.tar.gz
-
+make
 mv btm_package.tar.gz /tmp/
 cd /tmp/
 tar -xpf btm_package.tar.gz
@@ -105,7 +102,7 @@ su # swith your user account to 'root'
       Tasks: 1 (limit: 37805)
         CPU: 1ms
      CGroup: /system.slice/btm-daemon.service
-             └─334 /usr/local/bin/btm daemon -p=/data/findora -i=4 -c=100 -m=btrfs -a=fade
+             └─334 /usr/local/bin/btm daemon -p=/data -i=4 -c=100 -m=btrfs -a=fade
 ```
 
 **Usage of [tools/install.sh](./tools/install.sh):**

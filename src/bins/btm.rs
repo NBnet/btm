@@ -126,11 +126,7 @@ mod cmd {
     }
 
     fn check_rollback(m: &ArgMatches, cfg: &BtmCfg) -> Result<()> {
-        const HINTS: &str = r#"    NOTE:
-            before executing the rollback,
-            all related processes must be exited,
-            such as findorad, abcid, tendermint, etc.
-        "#;
+        const HINTS: &str = "NOTE: all related processes must be stopped before the rollback!";
 
         if m.is_present("snapshot-rollback")
             || m.is_present("snapshot-rollback-to")
