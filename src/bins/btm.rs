@@ -22,136 +22,142 @@
 //! ```
 //!
 
-use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode, STEP_CNT};
-use clap::{crate_authors, crate_description, App, Arg, ArgMatches, SubCommand};
-use ruc::{cmd::exec_output, *};
-use std::{env, process::exit};
-
 fn main() {
-    pnk!(run_btm(parse_cmdline()).c(d!()))
+    cmd::run();
 }
 
-fn run_btm(m: ArgMatches) -> Result<()> {
-    let mut res = BtmCfg::new();
+#[cfg(target_os = "linux")]
+mod cmd {
+    use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode, STEP_CNT};
+    use clap::{crate_authors, crate_description, App, Arg, ArgMatches, SubCommand};
+    use ruc::{cmd::exec_output, *};
+    use std::{env, process::exit};
 
-    if let Some(sub_m) = m.subcommand_matches("daemon") {
-        // this field should be parsed at the top
-        res.target = sub_m
-            .value_of("snapshot-target")
-            .c(d!())
-            .map(|t| t.to_owned())
-            .or_else(|e| env::var("BTM_SNAPSHOT_TARGET").c(d!(e)))?;
-
-        res.itv = sub_m
-            .value_of("snapshot-itv")
-            .unwrap_or("10")
-            .parse::<u64>()
-            .c(d!())?;
-        res.cap = sub_m
-            .value_of("snapshot-cap")
-            .unwrap_or("100")
-            .parse::<u64>()
-            .c(d!())?;
-
-        if let Some(sm) = sub_m.value_of("snapshot-mode") {
-            res.mode = SnapMode::from_string(sm).c(d!())?;
-            if matches!(res.mode, SnapMode::External) {
-                return Err(eg!("Running `External` mode in `btm` is not allowed!"));
-            }
-        } else {
-            res.mode = res.guess_mode().c(d!())?;
-        }
-
-        if let Some(sa) = sub_m.value_of("snapshot-algo") {
-            res.algo = SnapAlgo::from_string(sa).c(d!())?;
-            res.itv.checked_pow(STEP_CNT as u32).c(d!())?;
-        }
-
-        run_daemon(res).c(d!())?;
-    } else {
-        // this field should be parsed at the top
-        res.target = m
-            .value_of("snapshot-target")
-            .c(d!())
-            .map(|t| t.to_owned())
-            .or_else(|e| env::var("BTM_SNAPSHOT_TARGET").c(d!(e)))?;
-
-        // the guess should always success in this scene
-        res.mode = res.guess_mode().c(d!())?;
-
-        if m.is_present("snapshot-list") {
-            list_snapshots(&res).c(d!())?;
-        } else if m.is_present("snapshot-clean") {
-            clean_snapshots(&res).c(d!())?;
-        }
-
-        check_rollback(&m, &res).c(d!())?;
+    pub(super) fn run() {
+        pnk!(run_btm(parse_cmdline()).c(d!()))
     }
 
-    Ok(())
-}
+    fn run_btm(m: ArgMatches) -> Result<()> {
+        let mut res = BtmCfg::new();
 
-fn list_snapshots(cfg: &BtmCfg) -> Result<()> {
-    println!("Available snapshots are listed below:");
-    cfg.get_sorted_snapshots()
-        .c(d!())?
-        .into_iter()
-        .rev()
-        .for_each(|h| {
-            println!("    {}", h);
-        });
-    exit(0);
-}
+        if let Some(sub_m) = m.subcommand_matches("daemon") {
+            // this field should be parsed at the top
+            res.target = sub_m
+                .value_of("snapshot-target")
+                .c(d!())
+                .map(|t| t.to_owned())
+                .or_else(|e| env::var("BTM_SNAPSHOT_TARGET").c(d!(e)))?;
 
-fn clean_snapshots(cfg: &BtmCfg) -> Result<()> {
-    cfg.get_sorted_snapshots()
-        .c(d!())?
-        .into_iter()
-        .rev()
-        .for_each(|height| {
-            let cmd = match cfg.mode {
-                SnapMode::Btrfs => format!("btrfs subvolume delete {}@{}", &cfg.target, height),
-                SnapMode::Zfs => format!("zfs destroy {}@{}", &cfg.target, height),
-                _ => pnk!(Err(eg!("Unsupported deriver"))),
-            };
-            info_omit!(exec_output(&cmd));
-        });
-    exit(0);
-}
+            res.itv = sub_m
+                .value_of("snapshot-itv")
+                .unwrap_or("10")
+                .parse::<u64>()
+                .c(d!())?;
+            res.cap = sub_m
+                .value_of("snapshot-cap")
+                .unwrap_or("100")
+                .parse::<u64>()
+                .c(d!())?;
 
-fn check_rollback(m: &ArgMatches, cfg: &BtmCfg) -> Result<()> {
-    const HINTS: &str = r#"    NOTE:
+            if let Some(sm) = sub_m.value_of("snapshot-mode") {
+                res.mode = SnapMode::from_string(sm).c(d!())?;
+                if matches!(res.mode, SnapMode::External) {
+                    return Err(eg!("Running `External` mode in `btm` is not allowed!"));
+                }
+            } else {
+                res.mode = res.guess_mode().c(d!())?;
+            }
+
+            if let Some(sa) = sub_m.value_of("snapshot-algo") {
+                res.algo = SnapAlgo::from_string(sa).c(d!())?;
+                res.itv.checked_pow(STEP_CNT as u32).c(d!())?;
+            }
+
+            run_daemon(res).c(d!())?;
+        } else {
+            // this field should be parsed at the top
+            res.target = m
+                .value_of("snapshot-target")
+                .c(d!())
+                .map(|t| t.to_owned())
+                .or_else(|e| env::var("BTM_SNAPSHOT_TARGET").c(d!(e)))?;
+
+            // the guess should always success in this scene
+            res.mode = res.guess_mode().c(d!())?;
+
+            if m.is_present("snapshot-list") {
+                list_snapshots(&res).c(d!())?;
+            } else if m.is_present("snapshot-clean") {
+                clean_snapshots(&res).c(d!())?;
+            }
+
+            check_rollback(&m, &res).c(d!())?;
+        }
+
+        Ok(())
+    }
+
+    fn list_snapshots(cfg: &BtmCfg) -> Result<()> {
+        println!("Available snapshots are listed below:");
+        cfg.get_sorted_snapshots()
+            .c(d!())?
+            .into_iter()
+            .rev()
+            .for_each(|h| {
+                println!("    {}", h);
+            });
+        exit(0);
+    }
+
+    fn clean_snapshots(cfg: &BtmCfg) -> Result<()> {
+        cfg.get_sorted_snapshots()
+            .c(d!())?
+            .into_iter()
+            .rev()
+            .for_each(|height| {
+                let cmd = match cfg.mode {
+                    SnapMode::Btrfs => format!("btrfs subvolume delete {}@{}", &cfg.target, height),
+                    SnapMode::Zfs => format!("zfs destroy {}@{}", &cfg.target, height),
+                    _ => pnk!(Err(eg!("Unsupported deriver"))),
+                };
+                info_omit!(exec_output(&cmd));
+            });
+        exit(0);
+    }
+
+    fn check_rollback(m: &ArgMatches, cfg: &BtmCfg) -> Result<()> {
+        const HINTS: &str = r#"    NOTE:
             before executing the rollback,
             all related processes must be exited,
             such as findorad, abcid, tendermint, etc.
         "#;
 
-    if m.is_present("snapshot-rollback")
-        || m.is_present("snapshot-rollback-to")
-        || m.is_present("snapshot-rollback-to-exact")
-    {
-        println!("\x1b[31;01m\n{}\x1b[00m", HINTS);
+        if m.is_present("snapshot-rollback")
+            || m.is_present("snapshot-rollback-to")
+            || m.is_present("snapshot-rollback-to-exact")
+        {
+            println!("\x1b[31;01m\n{}\x1b[00m", HINTS);
 
-        let (h, strict) = m
-            .value_of("snapshot-rollback-to-exact")
-            .map(|h| (Some(h), true))
-            .or_else(|| m.value_of("snapshot-rollback-to").map(|h| (Some(h), false)))
-            .unwrap_or((None, false));
-        let h = if let Some(h) = h {
-            Some(h.parse::<u64>().c(d!())?)
-        } else {
-            None
-        };
-        cfg.rollback(h, strict).c(d!())?;
+            let (h, strict) = m
+                .value_of("snapshot-rollback-to-exact")
+                .map(|h| (Some(h), true))
+                .or_else(|| m.value_of("snapshot-rollback-to").map(|h| (Some(h), false)))
+                .unwrap_or((None, false));
+            let h = if let Some(h) = h {
+                Some(h.parse::<u64>().c(d!())?)
+            } else {
+                None
+            };
+            cfg.rollback(h, strict).c(d!())?;
 
-        exit(0);
+            exit(0);
+        }
+
+        Ok(())
     }
 
-    Ok(())
-}
-
-fn parse_cmdline() -> ArgMatches<'static> {
-    App::new("btm")
+    fn parse_cmdline() -> ArgMatches<'static> {
+        App::new("btm")
         .about(crate_description!())
         .author(crate_authors!())
         .subcommand(
@@ -173,4 +179,10 @@ fn parse_cmdline() -> ArgMatches<'static> {
         .arg(Arg::with_name("_c").long("test-threads").hidden(true))
         .arg(Arg::with_name("INPUT").multiple(true).hidden(true))
         .get_matches()
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+mod cmd {
+    pub(super) fn run() {}
 }

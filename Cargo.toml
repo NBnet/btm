@@ -1,15 +1,13 @@
 [package]
 name = "btm"
 version = "0.1.7"
-edition = "2018"
-
-keywords = ["version-control", "blockchain", "zfs", "btrfs"]
-
+edition = "2021"
+keywords = ["version-control", "snapshot", "zfs", "btrfs"]
 license = "MIT"
-authors = ["FindoraNetwork"]
+authors = ["fanhui.x@gmail.com"]
 description = "Blockchain Time Machine"
-homepage = "https://github.com/FindoraNetwork/btm"
-repository = "https://github.com/FindoraNetwork/btm.git"
+homepage = "https://github.com/ccmlm/btm"
+repository = "https://github.com/ccmlm/btm.git"
 
 [dependencies]
 ruc = { version = "0.6.5", features = ["rich"]}

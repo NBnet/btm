@@ -6,6 +6,7 @@
 //! - clean up expired snapshots
 //!
 
+#![cfg(target_os = "linux")]
 #![deny(warnings)]
 #![deny(missing_docs)]
 
