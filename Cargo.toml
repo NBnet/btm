@@ -1,8 +1,8 @@
 [package]
 name = "btm"
-version = "0.1.9"
+version = "0.2.0"
 edition = "2021"
-keywords = ["version-control", "snapshot", "zfs", "btrfs"]
+keywords = ["vcs", "snapshot", "zfs", "btrfs"]
 license = "MIT"
 authors = ["fanhui.x@gmail.com"]
 description = "Blockchain Time Machine"
@@ -10,12 +10,12 @@ homepage = "https://github.com/ccmlm/btm"
 repository = "https://github.com/ccmlm/btm.git"
 
 [dependencies]
-ruc = { version = "1.0", features = ["rich"]}
-clap = "2.33.3"
+ruc = { version = "1.0.3", features = ["rich"]}
+clap = "3.0.10"
 serde = { version = "1.0.124", features = ["derive"] }
 serde_json = "1.0.40"
-lazy_static = "1.4.0"
-nix = "0.22.2"
+once_cell = "1.9.0"
+nix = "0.23.1"
 
 [[bin]]
 name = "btm"

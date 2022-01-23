@@ -2,15 +2,13 @@ use crate::{
     api::model::{Req, Resp, SERVER_US_ADDR},
     BtmCfg,
 };
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use ruc::{
     uau::{SockAddr, UauSock},
     *,
 };
 
-lazy_static! {
-    static ref SERVER_PEER: SockAddr = pnk!(UauSock::addr_to_sock(SERVER_US_ADDR));
-}
+static SERVER_PEER: Lazy<SockAddr> = Lazy::new(|| pnk!(UauSock::addr_to_sock(SERVER_US_ADDR)));
 
 #[inline(always)]
 pub(crate) fn request_snapshot(_cfg: &BtmCfg, idx: u64) -> Result<()> {

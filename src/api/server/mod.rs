@@ -6,12 +6,10 @@ use crate::{
     api::model::{Req, Resp, SERVER_US_ADDR},
     BtmCfg,
 };
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use ruc::{uau::UauSock, *};
 
-lazy_static! {
-    static ref SERVER_US: UauSock = pnk!(UauSock::new(SERVER_US_ADDR, None));
-}
+static SERVER_US: Lazy<UauSock> = Lazy::new(|| pnk!(UauSock::new(SERVER_US_ADDR, None)));
 
 /// Run `btm daemon ...` server
 pub fn run_daemon(cfg: BtmCfg) -> Result<()> {
