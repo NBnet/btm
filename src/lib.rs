@@ -15,8 +15,10 @@ mod driver;
 
 pub use api::server::run_daemon;
 
+use clap::Parser;
 use driver::{btrfs, external, zfs};
 use ruc::*;
+use std::{fmt, result::Result as StdResult, str::FromStr};
 
 /// Maximum number of snapshots that can be kept
 pub const CAP_MAX: u64 = 4096;
@@ -25,19 +27,25 @@ pub const CAP_MAX: u64 = 4096;
 pub const STEP_CNT: usize = 10;
 
 /// Config structure of snapshot
-#[derive(Debug)]
+#[derive(Clone, Debug, Parser)]
 pub struct BtmCfg {
     /// a global switch for enabling snapshot functions
+    #[clap(long)]
     pub enable: bool,
     /// interval between adjacent snapshots, default to 10 blocks
+    #[clap(short, long, default_value_t = 10)]
     pub itv: u64,
     /// the maximum number of snapshots that will be stored, default to 100
+    #[clap(short, long, default_value_t = 100)]
     pub cap: u64,
     /// Zfs or Btrfs or External, will try a guess if missing
+    #[clap(short, long, default_value_t = SnapMode::Zfs)]
     pub mode: SnapMode,
     /// Fair or Fade, default to 'Fair'
+    #[clap(short, long, default_value_t = SnapAlgo::Fair)]
     pub algo: SnapAlgo,
     /// a data volume containing both ledger data and tendermint data
+    #[clap(short = 'p', long, default_value_t = String::from("zfs/data"))]
     pub target: String,
 }
 
@@ -156,7 +164,7 @@ impl BtmCfg {
 /// rm -rf /btrfs/data || exit 1
 /// btrfs subvolume snapshot /btrfs/data@123456 /btrfs/data
 /// ```
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum SnapMode {
     /// available on some Linux distributions and FreeBSD
     /// - Ubuntu Linux
@@ -172,12 +180,6 @@ pub enum SnapMode {
     External,
 }
 
-impl Default for SnapMode {
-    fn default() -> Self {
-        Self::Zfs
-    }
-}
-
 impl SnapMode {
     #[inline(always)]
     #[allow(missing_docs)]
@@ -191,19 +193,37 @@ impl SnapMode {
     }
 }
 
+impl Default for SnapMode {
+    fn default() -> Self {
+        Self::Zfs
+    }
+}
+
+impl fmt::Display for SnapMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let contents = match self {
+            Self::Zfs => "Fair",
+            Self::Btrfs => "Fade",
+            Self::External => "External",
+        };
+        write!(f, "{}", contents)
+    }
+}
+
+impl FromStr for SnapMode {
+    type Err = String;
+    fn from_str(s: &str) -> StdResult<Self, Self::Err> {
+        Self::from_string(s).c(d!()).map_err(|e| e.to_string())
+    }
+}
+
 /// Snapshot management algorithm
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum SnapAlgo {
     /// snapshots are saved at fixed intervals
     Fair,
     /// snapshots are saved in decreasing density
     Fade,
-}
-
-impl Default for SnapAlgo {
-    fn default() -> Self {
-        Self::Fair
-    }
 }
 
 impl SnapAlgo {
@@ -215,5 +235,28 @@ impl SnapAlgo {
             "fade" => Ok(Self::Fade),
             _ => Err(eg!()),
         }
+    }
+}
+
+impl Default for SnapAlgo {
+    fn default() -> Self {
+        Self::Fair
+    }
+}
+
+impl fmt::Display for SnapAlgo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let contents = match self {
+            Self::Fair => "Fair",
+            Self::Fade => "Fade",
+        };
+        write!(f, "{}", contents)
+    }
+}
+
+impl FromStr for SnapAlgo {
+    type Err = String;
+    fn from_str(s: &str) -> StdResult<Self, Self::Err> {
+        Self::from_string(s).c(d!()).map_err(|e| e.to_string())
     }
 }
