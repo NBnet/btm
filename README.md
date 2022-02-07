@@ -1,4 +1,3 @@
-![](https://tokei.rs/b1/github/ccmlm/btm)
 ![GitHub top language](https://img.shields.io/github/languages/top/ccmlm/btm)
 ![GitHub issues](https://img.shields.io/github/issues-raw/ccmlm/btm)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/ccmlm/btm)
