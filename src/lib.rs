@@ -205,8 +205,8 @@ impl Default for SnapMode {
 impl fmt::Display for SnapMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let contents = match self {
-            Self::Zfs => "Fair",
-            Self::Btrfs => "Fade",
+            Self::Zfs => "Zfs",
+            Self::Btrfs => "Btrfs",
             Self::External => "External",
         };
         write!(f, "{}", contents)
