@@ -28,7 +28,7 @@ fn main() {
 
 #[cfg(target_os = "linux")]
 mod cmd {
-    use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode, STEP_CNT};
+    use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode, ENV_VAR_BTM_TARGET, STEP_CNT};
     use clap::{arg, App, Arg, ArgMatches};
     use ruc::{cmd::exec_output, *};
     use std::{env, process::exit};
@@ -46,7 +46,7 @@ mod cmd {
                 .value_of("snapshot-target")
                 .c(d!())
                 .map(|t| t.to_owned())
-                .or_else(|e| env::var("BTM_SNAPSHOT_TARGET").c(d!(e)))?;
+                .or_else(|e| env::var(ENV_VAR_BTM_TARGET).c(d!(e)))?;
 
             res.itv = sub_m
                 .value_of("snapshot-itv")
@@ -80,7 +80,7 @@ mod cmd {
                 .value_of("snapshot-target")
                 .c(d!())
                 .map(|t| t.to_owned())
-                .or_else(|e| env::var("BTM_SNAPSHOT_TARGET").c(d!(e)))?;
+                .or_else(|e| env::var(ENV_VAR_BTM_TARGET).c(d!(e)))?;
 
             // the guess should always success in this scene
             res.mode = res.guess_mode().c(d!())?;

@@ -26,6 +26,9 @@ pub const CAP_MAX: u64 = 4096;
 /// `itv.pow(i)`, only useful in `SnapAlgo::Fade` alfo
 pub const STEP_CNT: usize = 10;
 
+/// The co-responding VAR-name of `--snapshot-target`
+pub const ENV_VAR_BTM_TARGET: &str = "BTM_SNAPSHOT_TARGET";
+
 /// Config structure of snapshot
 #[derive(Clone, Debug, Parser)]
 pub struct BtmCfg {
