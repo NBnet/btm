@@ -167,7 +167,7 @@ impl BtmCfg {
 /// rm -rf /btrfs/data || exit 1
 /// btrfs subvolume snapshot /btrfs/data@123456 /btrfs/data
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum SnapMode {
     /// available on some Linux distributions and FreeBSD
     /// - Ubuntu Linux
@@ -221,7 +221,7 @@ impl FromStr for SnapMode {
 }
 
 /// Snapshot management algorithm
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum SnapAlgo {
     /// snapshots are saved at fixed intervals
     Fair,
