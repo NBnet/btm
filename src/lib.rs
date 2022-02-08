@@ -27,7 +27,7 @@ pub const CAP_MAX: u64 = 4096;
 pub const STEP_CNT: usize = 10;
 
 /// The co-responding VAR-name of `--snapshot-volume`
-pub const ENV_VAR_BTM_TARGET: &str = "BTM_SNAPSHOT_TARGET";
+pub const ENV_VAR_BTM_VOLUME: &str = "BTM_VOLUME";
 
 /// Config structure of snapshot
 #[derive(Clone, Debug, Parser)]
