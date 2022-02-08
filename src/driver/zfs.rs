@@ -10,7 +10,7 @@ pub(crate) fn gen_snapshot(cfg: &BtmCfg, idx: u64) -> Result<()> {
             zfs destroy {0}@{1} 2>/dev/null;
             zfs snapshot {0}@{1}
             ",
-        &cfg.target, idx
+        &cfg.volume, idx
     );
     exec_output(&cmd).c(d!()).map(|_| ())
 }
@@ -18,7 +18,7 @@ pub(crate) fn gen_snapshot(cfg: &BtmCfg, idx: u64) -> Result<()> {
 pub(crate) fn sorted_snapshots(cfg: &BtmCfg) -> Result<Vec<u64>> {
     let cmd = format!(
         r"zfs list -t snapshot {} | grep -o '@[0-9]\+' | sed 's/@//'",
-        &cfg.target
+        &cfg.volume
     );
     let output = exec_output(&cmd).c(d!())?;
 
@@ -42,7 +42,7 @@ pub(crate) fn rollback(cfg: &BtmCfg, idx: Option<u64>, strict: bool) -> Result<(
 
     let cmd = match snaps.binary_search(&idx) {
         Ok(_) => {
-            format!("zfs rollback -r {}@{}", &cfg.target, idx)
+            format!("zfs rollback -r {}@{}", &cfg.volume, idx)
         }
         Err(i) => {
             if strict {
@@ -56,7 +56,7 @@ pub(crate) fn rollback(cfg: &BtmCfg, idx: Option<u64>, strict: bool) -> Result<(
                         .find_map(|i| snaps.get(i))
                         .c(d!("no snapshots found"))?
                 };
-                format!("zfs rollback -r {}@{}", &cfg.target, effective_idx)
+                format!("zfs rollback -r {}@{}", &cfg.volume, effective_idx)
             }
         }
     };
@@ -65,8 +65,8 @@ pub(crate) fn rollback(cfg: &BtmCfg, idx: Option<u64>, strict: bool) -> Result<(
 }
 
 #[inline(always)]
-pub(crate) fn check(target: &str) -> Result<()> {
-    let cmd = format!("zfs list {0} || zfs create {0}", target);
+pub(crate) fn check(volume: &str) -> Result<()> {
+    let cmd = format!("zfs list {0} || zfs create {0}", volume);
     exec_output(&cmd).c(d!()).map(|_| ())
 }
 
@@ -87,7 +87,7 @@ fn clean_outdated_fair(cfg: &BtmCfg) -> Result<()> {
     }
 
     snaps[cap..].iter().for_each(|i| {
-        let cmd = format!("zfs destroy {}@{}", &cfg.target, i);
+        let cmd = format!("zfs destroy {}@{}", &cfg.volume, i);
         info_omit!(exec_output(&cmd));
     });
 
@@ -131,7 +131,7 @@ fn clean_outdated_fade(cfg: &BtmCfg) -> Result<()> {
 
         pair.0.iter().for_each(|n| {
             if 0 != (u64::MAX - n) % denominator as u64 {
-                let cmd = format!("zfs destroy {}@{}", &cfg.target, n);
+                let cmd = format!("zfs destroy {}@{}", &cfg.volume, n);
                 info_omit!(exec_output(&cmd));
             }
         });
@@ -140,7 +140,7 @@ fn clean_outdated_fade(cfg: &BtmCfg) -> Result<()> {
     // 2.
     if cap < snaps.len() {
         snaps[cap..].iter().for_each(|i| {
-            let cmd = format!("zfs destroy {}@{}", &cfg.target, i);
+            let cmd = format!("zfs destroy {}@{}", &cfg.volume, i);
             info_omit!(exec_output(&cmd));
         });
     }

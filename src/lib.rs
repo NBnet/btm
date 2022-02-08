@@ -26,7 +26,7 @@ pub const CAP_MAX: u64 = 4096;
 /// `itv.pow(i)`, only useful in `SnapAlgo::Fade` alfo
 pub const STEP_CNT: usize = 10;
 
-/// The co-responding VAR-name of `--snapshot-target`
+/// The co-responding VAR-name of `--snapshot-volume`
 pub const ENV_VAR_BTM_TARGET: &str = "BTM_SNAPSHOT_TARGET";
 
 /// Config structure of snapshot
@@ -49,7 +49,7 @@ pub struct BtmCfg {
     pub algo: SnapAlgo,
     /// a data volume containing both ledger data and tendermint data
     #[clap(short = 'p', long, default_value_t = String::from("zfs/data"))]
-    pub target: String,
+    pub volume: String,
 }
 
 impl Default for BtmCfg {
@@ -60,7 +60,7 @@ impl Default for BtmCfg {
             cap: 100,
             mode: SnapMode::Zfs,
             algo: SnapAlgo::Fair,
-            target: "zfs/data".to_owned(),
+            volume: "zfs/data".to_owned(),
         }
     }
 }
@@ -125,10 +125,10 @@ impl BtmCfg {
     /// NOTE: not suitable for `External` mode
     #[inline(always)]
     pub fn guess_mode(&self) -> Result<SnapMode> {
-        zfs::check(&self.target)
+        zfs::check(&self.volume)
             .c(d!())
             .map(|_| SnapMode::Zfs)
-            .or_else(|e| btrfs::check(&self.target).c(d!(e)).map(|_| SnapMode::Btrfs))
+            .or_else(|e| btrfs::check(&self.volume).c(d!(e)).map(|_| SnapMode::Btrfs))
     }
 
     #[inline(always)]

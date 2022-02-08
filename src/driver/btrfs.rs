@@ -11,7 +11,7 @@ pub(crate) fn gen_snapshot(cfg: &BtmCfg, idx: u64) -> Result<()> {
             btrfs subvolume delete {0}@{1} 2>/dev/null;
             btrfs subvolume snapshot {0} {0}@{1}
             ",
-        &cfg.target, idx
+        &cfg.volume, idx
     );
     exec_output(&cmd).c(d!()).map(|_| ())
 }
@@ -19,7 +19,7 @@ pub(crate) fn gen_snapshot(cfg: &BtmCfg, idx: u64) -> Result<()> {
 pub(crate) fn sorted_snapshots(cfg: &BtmCfg) -> Result<Vec<u64>> {
     let cmd = format!(
         r"btrfs subvolume list -so {} | grep -o '@[0-9]\+$' | sed 's/@//'",
-        PathBuf::from(&cfg.target)
+        PathBuf::from(&cfg.volume)
             .parent()
             .c(d!())?
             .to_str()
@@ -51,7 +51,7 @@ pub(crate) fn rollback(cfg: &BtmCfg, idx: Option<u64>, strict: bool) -> Result<(
                     btrfs subvolume delete {0} 2>/dev/null;
                     btrfs subvolume snapshot {0}@{1} {0}
                     ",
-                &cfg.target, idx
+                &cfg.volume, idx
             )
         }
         Err(i) => {
@@ -68,7 +68,7 @@ pub(crate) fn rollback(cfg: &BtmCfg, idx: Option<u64>, strict: bool) -> Result<(
                         btrfs subvolume delete {0} 2>/dev/null;
                         btrfs subvolume snapshot {0}@{1} {0}
                         ",
-                    &cfg.target, effective_idx
+                    &cfg.volume, effective_idx
                 )
             }
         }
@@ -78,10 +78,10 @@ pub(crate) fn rollback(cfg: &BtmCfg, idx: Option<u64>, strict: bool) -> Result<(
 }
 
 #[inline(always)]
-pub(crate) fn check(target: &str) -> Result<()> {
+pub(crate) fn check(volume: &str) -> Result<()> {
     let cmd = format!(
         "btrfs subvolume list {0} || btrfs subvolume create {0}",
-        target
+        volume
     );
     exec_output(&cmd).c(d!()).map(|_| ())
 }
@@ -103,7 +103,7 @@ fn clean_outdated_fair(cfg: &BtmCfg) -> Result<()> {
     }
 
     let list = snaps[cap..].iter().fold(String::new(), |acc, i| {
-        acc + &format!("{}@{} ", &cfg.target, i)
+        acc + &format!("{}@{} ", &cfg.volume, i)
     });
 
     // let cmd = format!("btrfs subvolume delete -c {}", list);
@@ -153,7 +153,7 @@ fn clean_outdated_fade(cfg: &BtmCfg) -> Result<()> {
 
         pair.0.iter().for_each(|n| {
             if 0 != (u64::MAX - n) % denominator as u64 {
-                to_del.push(format!("{}@{}", &cfg.target, n));
+                to_del.push(format!("{}@{}", &cfg.volume, n));
             }
         });
     }
@@ -161,7 +161,7 @@ fn clean_outdated_fade(cfg: &BtmCfg) -> Result<()> {
     // 2.
     if cap < snaps.len() {
         snaps[cap..].iter().for_each(|n| {
-            to_del.push(format!("{}@{}", &cfg.target, n));
+            to_del.push(format!("{}@{}", &cfg.volume, n));
         });
     }
 

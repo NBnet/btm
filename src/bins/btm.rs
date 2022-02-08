@@ -4,17 +4,17 @@
 //! ## Client Mode
 //!
 //! ```shell
-//! btm --snapshot-target <VOLUME> --snapshot-list
-//! btm --snapshot-target <VOLUME> --snapshot-rollback
-//! btm --snapshot-target <VOLUME> --snapshot-rollback-to <IDX>
-//! btm --snapshot-target <VOLUME> --snapshot-rollback-to-exact <IDX>
+//! btm --snapshot-volume <VOLUME> --snapshot-list
+//! btm --snapshot-volume <VOLUME> --snapshot-rollback
+//! btm --snapshot-volume <VOLUME> --snapshot-rollback-to <IDX>
+//! btm --snapshot-volume <VOLUME> --snapshot-rollback-to-exact <IDX>
 //! ```
 //!
 //! ## Server Mode
 //!
 //! ```shell
 //! btm daemon \
-//!         --snapshot-target <VOLUME> \
+//!         --snapshot-volume <VOLUME> \
 //!         --snapshot-itv <ITV> \
 //!         --snapshot-cap <CAP> \
 //!         --snapshot-mode <MODE> \
@@ -42,8 +42,8 @@ mod cmd {
 
         if let Some(sub_m) = m.subcommand_matches("daemon") {
             // this field should be parsed at the top
-            res.target = sub_m
-                .value_of("snapshot-target")
+            res.volume = sub_m
+                .value_of("snapshot-volume")
                 .c(d!())
                 .map(|t| t.to_owned())
                 .or_else(|e| env::var(ENV_VAR_BTM_TARGET).c(d!(e)))?;
@@ -76,8 +76,8 @@ mod cmd {
             run_daemon(res).c(d!())?;
         } else {
             // this field should be parsed at the top
-            res.target = m
-                .value_of("snapshot-target")
+            res.volume = m
+                .value_of("snapshot-volume")
                 .c(d!())
                 .map(|t| t.to_owned())
                 .or_else(|e| env::var(ENV_VAR_BTM_TARGET).c(d!(e)))?;
@@ -116,8 +116,8 @@ mod cmd {
             .rev()
             .for_each(|height| {
                 let cmd = match cfg.mode {
-                    SnapMode::Btrfs => format!("btrfs subvolume delete {}@{}", &cfg.target, height),
-                    SnapMode::Zfs => format!("zfs destroy {}@{}", &cfg.target, height),
+                    SnapMode::Btrfs => format!("btrfs subvolume delete {}@{}", &cfg.volume, height),
+                    SnapMode::Zfs => format!("zfs destroy {}@{}", &cfg.volume, height),
                     _ => pnk!(Err(eg!("Unsupported deriver"))),
                 };
                 info_omit!(exec_output(&cmd));
@@ -157,7 +157,7 @@ mod cmd {
         .subcommand(
             App::new("daemon")
             .args(&[
-                  arg!(-p --"snapshot-target" [TargetPath] "a data volume containing both ledger data and tendermint data"),
+                  arg!(-p --"snapshot-volume" [VolumePath] "a data volume containing both ledger data and tendermint data"),
                   arg!(-i --"snapshot-itv" [Iterval] "interval between adjacent snapshots, default to 10 blocks"),
                   arg!(-c --"snapshot-cap" [Capacity] "the maximum number of snapshots that will be stored, default to 100"),
                   arg!(-m --"snapshot-mode" [Mode] "zfs/btrfs/external, will try a guess if missing"),
@@ -165,7 +165,7 @@ mod cmd {
             ])
         )
         .args(&[
-              arg!(-p --"snapshot-target" [TargetPath] "a data volume containing both ledger data and tendermint data"),
+              arg!(-p --"snapshot-volume" [VolumePath] "a data volume containing both ledger data and tendermint data"),
               arg!(-l --"snapshot-list" "list all available snapshots in the form of block height"),
               arg!(-x --"snapshot-rollback" "rollback to the last available snapshot"),
               arg!(-r --"snapshot-rollback-to" [Height] "rollback to a custom height, will try the closest smaller height if the target does not exist"),
