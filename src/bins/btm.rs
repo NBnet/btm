@@ -30,7 +30,7 @@ fn main() {
 mod cmd {
     use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode, ENV_VAR_BTM_VOLUME, STEP_CNT};
     use clap::{arg, App, Arg, ArgMatches};
-    use ruc::{cmd::exec_output, *};
+    use ruc::*;
     use std::{env, process::exit};
 
     pub(super) fn run() {
@@ -98,30 +98,12 @@ mod cmd {
     }
 
     fn list_snapshots(cfg: &BtmCfg) -> Result<()> {
-        println!("Available snapshots are listed below:");
-        cfg.get_sorted_snapshots()
-            .c(d!())?
-            .into_iter()
-            .rev()
-            .for_each(|h| {
-                println!("    {}", h);
-            });
+        cfg.list_snapshots().c(d!())?;
         exit(0);
     }
 
     fn clean_snapshots(cfg: &BtmCfg) -> Result<()> {
-        cfg.get_sorted_snapshots()
-            .c(d!())?
-            .into_iter()
-            .rev()
-            .for_each(|height| {
-                let cmd = match cfg.mode {
-                    SnapMode::Btrfs => format!("btrfs subvolume delete {}@{}", &cfg.volume, height),
-                    SnapMode::Zfs => format!("zfs destroy {}@{}", &cfg.volume, height),
-                    _ => pnk!(Err(eg!("Unsupported deriver"))),
-                };
-                info_omit!(exec_output(&cmd));
-            });
+        cfg.clean_snapshots().c(d!())?;
         exit(0);
     }
 

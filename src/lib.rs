@@ -17,7 +17,7 @@ pub use api::server::run_daemon;
 
 use clap::Parser;
 use driver::{btrfs, external, zfs};
-use ruc::*;
+use ruc::{cmd, *};
 use std::{fmt, result::Result as StdResult, str::FromStr};
 
 /// Maximum number of snapshots that can be kept
@@ -134,6 +134,32 @@ impl BtmCfg {
     #[inline(always)]
     fn get_cap(&self) -> u64 {
         alt!(self.cap > CAP_MAX, CAP_MAX, self.cap)
+    }
+
+    /// List all existing snapshots.
+    pub fn list_snapshots(&self) -> Result<()> {
+        println!("Available snapshots are listed below:");
+        self.get_sorted_snapshots().c(d!()).map(|list| {
+            list.into_iter().rev().for_each(|h| {
+                println!("    {}", h);
+            })
+        })
+    }
+
+    /// Clean all existing snapshots.
+    pub fn clean_snapshots(&self) -> Result<()> {
+        self.get_sorted_snapshots().c(d!()).map(|list| {
+            list.into_iter().rev().for_each(|height| {
+                let cmd = match self.mode {
+                    SnapMode::Btrfs => {
+                        format!("btrfs subvolume delete {}@{}", &self.volume, height)
+                    }
+                    SnapMode::Zfs => format!("zfs destroy {}@{}", &self.volume, height),
+                    _ => pnk!(Err(eg!("Unsupported deriver"))),
+                };
+                info_omit!(cmd::exec_output(&cmd));
+            });
+        })
     }
 }
 
