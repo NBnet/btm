@@ -1,6 +1,8 @@
 ![GitHub top language](https://img.shields.io/github/languages/top/ccmlm/btm)
-![GitHub issues](https://img.shields.io/github/issues-raw/ccmlm/btm)
-![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/ccmlm/btm)
+[![Latest Version](https://img.shields.io/crates/v/btm.svg)](https://crates.io/crates/btm)
+[![Rust Documentation](https://img.shields.io/badge/api-rustdoc-blue.svg)](https://docs.rs/btm)
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/ccmlm/btm/Rust)
+[![Minimum rustc version](https://img.shields.io/badge/rustc-1.59+-lightgray.svg)](https://github.com/rust-random/rand#rust-version-requirements)
 
 # BTM
 
@@ -12,14 +14,42 @@ BTM is an incremental data backup mechanism that does not require downtime.
 
 btm will give you the following abilities or advantages:
 
-- fall back to the data state of a desired block height instantly
-- the atomicity of snapshot data can be guaranteed
+- rollback to the state of a desired block height
 - hot backup during operation, no downtime is needed
 - based on OS-level infrastructure, stable and reliable
 - very small resource usage, almost no performance damage
 - ...
 
-## User Instructions
+## Library Usages
+
+```rust
+use btm::{BtmCfg, SnapMode, SnapAlgo};
+
+let cfg = BtmCfg {
+    enable: true,
+    itv: 10,
+    cap: 100,
+    mode: SnapMode::Zfs,
+    algo: SnapAlgo::Fade,
+    volume: "zroot/data".to_owned(),
+};
+
+// Generate snapshots in some threads.
+cfg.snapshot(0).unwrap();
+cfg.snapshot(1).unwrap();
+cfg.snapshot(11).unwrap();
+
+/// Print all existing snapshots.
+cfg.list_snapshots();
+
+/// Rollback to the state of the last snapshot.
+cfg.rollback(None, false).unwrap();
+
+/// Rollback to the state of a custom snapshot.
+cfg.rollback(Some(11), true).unwrap();
+```
+
+## Binary Usages
 
 **Usage of `btm ...`:**
 
@@ -27,27 +57,31 @@ btm will give you the following abilities or advantages:
 btm
 
 USAGE:
-    btm [FLAGS] [OPTIONS] [SUBCOMMAND]
-
-FLAGS:
-    -h, --help                 Prints help information
-    -C, --snapshot-clean       clean up all existing snapshots
-    -l, --snapshot-list        list all available snapshots in the form of block height
-    -x, --snapshot-rollback    rollback to the last available snapshot
-    -V, --version              Prints version information
+    btm [OPTIONS] [SUBCOMMAND]
 
 OPTIONS:
-    -r, --snapshot-rollback-to <Height>
-            rollback to a custom height, will try the closest smaller height if the target does not exist
+    -C, --snapshot-clean
+            clean up all existing snapshots
 
-    -R, --snapshot-rollback-to-exact <Height>
-            rollback to a custom height exactly, an error will be reported if the target does not exist
+    -h, --help
+            Print help information
 
-    -p, --snapshot-target <TargetPath>           a data volume containing both ledger data and tendermint data
+    -l, --snapshot-list
+            list all available snapshots in the form of block height
 
-SUBCOMMANDS:
-    daemon
-    help      Prints this message or the help of the given subcommand(s)
+    -p, --snapshot-volume [<VolumePath>...]
+            a data volume containing your blockchain data
+
+    -r, --snapshot-rollback-to [<Height>...]
+            rollback to a custom height, will try the closest smaller height if the target does not
+            exist
+
+    -R, --snapshot-rollback-to-exact [<Height>...]
+            rollback to a custom height exactly, an error will be reported if the target does not
+            exist
+
+    -x, --snapshot-rollback
+            rollback to the last available snapshot
 ```
 
 **Usage of `btm daemon ...`:**
@@ -58,16 +92,24 @@ btm-daemon
 USAGE:
     btm daemon [OPTIONS]
 
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-
 OPTIONS:
-    -a, --snapshot-algo <Algo>            fair/fade, default to `fair`
-    -c, --snapshot-cap <Capacity>         the maximum number of snapshots that will be stored, default to 100
-    -i, --snapshot-itv <Iterval>          interval between adjacent snapshots, default to 10 blocks
-    -m, --snapshot-mode <Mode>            zfs/btrfs/external, will try a guess if missing
-    -p, --snapshot-target <TargetPath>    a data volume containing both ledger data and tendermint data
+    -a, --snapshot-algo [<Algo>...]
+            fair/fade, default to `fair`
+
+    -c, --snapshot-cap [<Capacity>...]
+            the maximum number of snapshots that will be stored, default to 100
+
+    -h, --help
+            Print help information
+
+    -i, --snapshot-itv [<Iterval>...]
+            interval between adjacent snapshots, default to 10 blocks
+
+    -m, --snapshot-mode [<Mode>...]
+            zfs/btrfs/external, will try a guess if missing
+
+    -p, --snapshot-volume [<VolumePath>...]
+            a data volume containing your blockchain data
 ```
 
 ## Install as a 'systemd service'
@@ -111,23 +153,24 @@ su # swith your user account to 'root'
 
 Usage
 
-    install.sh
-        --snapshot-itv=<ITV>
-        --snapshot-cap=<CAP>
-        --snapshot-mode=<MODE>
-        --snapshot-algo=<ALGO>
-        --snapshot-target=<TARGET>
+	install.sh
+		--snapshot-itv=<ITV>
+		--snapshot-cap=<CAP>
+		--snapshot-mode=<MODE>
+		--snapshot-algo=<ALGO>
+		--snapshot-volume=<VOLUME>
 
 Example
 
-    install.sh \
-        --snapshot-itv=4 \
-        --snapshot-cap=100 \
-        --snapshot-mode=zfs \
-        --snapshot-algo=fade \
-        --snapshot-target=zfs/data
+	install.sh \
+		--snapshot-itv=4 \
+		--snapshot-cap=100 \
+		--snapshot-mode=zfs \
+		--snapshot-algo=fair \
+		--snapshot-volume=zfs/blockchain
 
 Example, short style
 
-    install.sh -i=4 -c=100 -m=zfs -a=fade -t=zfs/data
+	install.sh -i=4 -c=100 -m=zfs -a=fair -p=zfs/blockchain
+	install.sh -i=4 -c=100 -m=btrfs -a=fair -p=/data/blockchain
 ```

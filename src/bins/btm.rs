@@ -29,7 +29,7 @@ fn main() {
 #[cfg(target_os = "linux")]
 mod cmd {
     use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode, ENV_VAR_BTM_VOLUME, STEP_CNT};
-    use clap::{arg, App, Arg, ArgMatches};
+    use clap::{arg, Arg, ArgMatches, Command};
     use ruc::*;
     use std::{env, process::exit};
 
@@ -41,12 +41,12 @@ mod cmd {
         let mut res = BtmCfg::new();
 
         if let Some(sub_m) = m.subcommand_matches("daemon") {
-            // this field should be parsed at the top
+            // this field should be parsed first
             res.volume = sub_m
                 .value_of("snapshot-volume")
-                .c(d!())
+                .c(d!("'--snapshot-volume' missing"))
                 .map(|t| t.to_owned())
-                .or_else(|e| env::var(ENV_VAR_BTM_VOLUME).c(d!(e)))?;
+                .or_else(|e| env::var(ENV_VAR_BTM_VOLUME).c(d!("{}: {}", ENV_VAR_BTM_VOLUME, e)))?;
 
             res.itv = sub_m
                 .value_of("snapshot-itv")
@@ -75,12 +75,12 @@ mod cmd {
 
             run_daemon(res).c(d!())?;
         } else {
-            // this field should be parsed at the top
+            // this field should be parsed first
             res.volume = m
                 .value_of("snapshot-volume")
-                .c(d!())
+                .c(d!("'--snapshot-volume' missing"))
                 .map(|t| t.to_owned())
-                .or_else(|e| env::var(ENV_VAR_BTM_VOLUME).c(d!(e)))?;
+                .or_else(|e| env::var(ENV_VAR_BTM_VOLUME).c(d!("{}: {}", ENV_VAR_BTM_VOLUME, e)))?;
 
             // the guess should always success in this scene
             res.mode = BtmCfg::guess_mode(&res.volume).c(d!())?;
@@ -135,11 +135,11 @@ mod cmd {
     }
 
     fn parse_cmdline() -> ArgMatches {
-        App::new("btm")
+        Command::new("btm")
         .subcommand(
-            App::new("daemon")
+            Command::new("daemon")
             .args(&[
-                  arg!(-p --"snapshot-volume" [VolumePath] "a data volume containing both ledger data and tendermint data"),
+                  arg!(-p --"snapshot-volume" [VolumePath] "a data volume containing your blockchain data"),
                   arg!(-i --"snapshot-itv" [Iterval] "interval between adjacent snapshots, default to 10 blocks"),
                   arg!(-c --"snapshot-cap" [Capacity] "the maximum number of snapshots that will be stored, default to 100"),
                   arg!(-m --"snapshot-mode" [Mode] "zfs/btrfs/external, will try a guess if missing"),
@@ -147,7 +147,7 @@ mod cmd {
             ])
         )
         .args(&[
-              arg!(-p --"snapshot-volume" [VolumePath] "a data volume containing both ledger data and tendermint data"),
+              arg!(-p --"snapshot-volume" [VolumePath] "a data volume containing your blockchain data"),
               arg!(-l --"snapshot-list" "list all available snapshots in the form of block height"),
               arg!(-x --"snapshot-rollback" "rollback to the last available snapshot"),
               arg!(-r --"snapshot-rollback-to" [Height] "rollback to a custom height, will try the closest smaller height if the target does not exist"),

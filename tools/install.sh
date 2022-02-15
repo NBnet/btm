@@ -29,8 +29,8 @@ cd $EXEC_PATH || exit 1
 #         --snapshot-itv=4 \
 #         --snapshot-cap=100 \
 #         --snapshot-mode=zfs \
-#         --snapshot-algo=fade \
-#         --snapshot-target=zfs/findora
+#         --snapshot-algo=fair \
+#         --snapshot-volume=zfs/blockchain
 # ```
 #
 
@@ -42,7 +42,7 @@ usage() {
     echo -e "\t\t--snapshot-cap=<CAP>"
     echo -e "\t\t--snapshot-mode=<MODE>"
     echo -e "\t\t--snapshot-algo=<ALGO>"
-    echo -e "\t\t--snapshot-target=<TARGET>"
+    echo -e "\t\t--snapshot-volume=<VOLUME>"
 
     echo
 
@@ -52,15 +52,15 @@ usage() {
     echo -e "\t\t--snapshot-itv=4 \\"
     echo -e "\t\t--snapshot-cap=100 \\"
     echo -e "\t\t--snapshot-mode=zfs \\"
-    echo -e "\t\t--snapshot-algo=fade \\"
-    echo -e "\t\t--snapshot-target=zfs/findora"
+    echo -e "\t\t--snapshot-algo=fair \\"
+    echo -e "\t\t--snapshot-volume=zfs/blockchain"
 
     echo
 
     echo -e "\033[31;01mExample, short style\033[0m"
     echo
-    echo -e "\tinstall.sh -i=4 -c=100 -m=zfs -a=fade -p=zfs/findora"
-    echo -e "\tinstall.sh -i=4 -c=100 -m=btrfs -a=fade -p=/data/findora"
+    echo -e "\tinstall.sh -i=4 -c=100 -m=zfs -a=fair -p=zfs/blockchain"
+    echo -e "\tinstall.sh -i=4 -c=100 -m=btrfs -a=fair -p=/data/blockchain"
     echo
 }
 
@@ -78,8 +78,8 @@ for i in "$@"; do
         -a=*|--snapshot-algo=*)
             ALGO="${i#*=}"
             ;;
-        -p=*|--snapshot-target=*)
-            TARGET="${i#*=}"
+        -p=*|--snapshot-volume=*)
+            VOLUME="${i#*=}"
             ;;
         *)
             usage
@@ -127,8 +127,8 @@ if [[ "fair" != $ALGO && "fade" != $ALGO ]]; then
     exit 1
 fi
 
-if [[ "" == $TARGET ]]; then
-    echo -e "\n\t\033[31;01m--snapshot-target\033[0m is missing !!\n"
+if [[ "" == $VOLUME ]]; then
+    echo -e "\n\t\033[31;01m--snapshot-volume\033[0m is missing !!\n"
     exit 1
 fi
 
@@ -137,7 +137,7 @@ sed -i "s#ITV#${ITV}#g" x.service
 sed -i "s#CAP#${CAP}#g" x.service
 sed -i "s#MODE#${MODE}#g" x.service
 sed -i "s#ALGO#${ALGO}#g" x.service
-sed -i "s#TARGET#${TARGET}#g" x.service
+sed -i "s#VOLUME#${VOLUME}#g" x.service
 
 target_path=$(dirname $(systemctl cat network.target | grep -o '#.*/network.target' | sed -r 's/^\s*#\s+//g'))
 cp -f x.service ${target_path}/btm-daemon.service || exit 1

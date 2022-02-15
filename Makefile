@@ -25,7 +25,7 @@ test:
 	cargo test -- --test-threads=1
 
 fmt:
-	sh tools/fmt.sh
+	bash tools/fmt.sh 2>/dev/null
 
 pack: release_musl
 	@ rm -rf $(PACKAGE)
@@ -34,8 +34,8 @@ pack: release_musl
 	@ cp tools/btm-daemon.service $(PACKAGE)/
 	@ cp $(BUILD_DIR)/x86_64-unknown-linux-musl/release/btm $(PACKAGE)/
 	@ tar -zcpf $(PACKAGE_TARGET) $(PACKAGE)
-	@ echo -e "\n\033[31;01mbuild path:\033[0m $(BUILD_DIR)"
-	@ echo -e "\033[31;01mpackage path:\033[0m $(PACKAGE_TARGET)\n"
+	@ printf "\n\033[31;01mbuild path:\033[0m $(BUILD_DIR)\n"
+	@ printf "\033[31;01mpackage path:\033[0m $(PACKAGE_TARGET)\n"
 
 update:
 	cargo update
