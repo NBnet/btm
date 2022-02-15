@@ -65,7 +65,7 @@ mod cmd {
                     return Err(eg!("Running `External` mode in `btm` is not allowed!"));
                 }
             } else {
-                res.mode = res.guess_mode().c(d!())?;
+                res.mode = BtmCfg::guess_mode(&res.volume).c(d!())?;
             }
 
             if let Some(sa) = sub_m.value_of("snapshot-algo") {
@@ -83,7 +83,7 @@ mod cmd {
                 .or_else(|e| env::var(ENV_VAR_BTM_VOLUME).c(d!(e)))?;
 
             // the guess should always success in this scene
-            res.mode = res.guess_mode().c(d!())?;
+            res.mode = BtmCfg::guess_mode(&res.volume).c(d!())?;
 
             if m.is_present("snapshot-list") {
                 list_snapshots(&res).c(d!())?;

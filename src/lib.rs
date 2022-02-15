@@ -124,11 +124,11 @@ impl BtmCfg {
     /// try to guess a correct mode
     /// NOTE: not suitable for `External` mode
     #[inline(always)]
-    pub fn guess_mode(&self) -> Result<SnapMode> {
-        zfs::check(&self.volume)
+    pub fn guess_mode(volume: &str) -> Result<SnapMode> {
+        zfs::check(volume)
             .c(d!())
             .map(|_| SnapMode::Zfs)
-            .or_else(|e| btrfs::check(&self.volume).c(d!(e)).map(|_| SnapMode::Btrfs))
+            .or_else(|e| btrfs::check(volume).c(d!(e)).map(|_| SnapMode::Btrfs))
     }
 
     #[inline(always)]
