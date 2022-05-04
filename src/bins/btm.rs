@@ -38,60 +38,79 @@ mod cmd {
     }
 
     fn run_btm(m: ArgMatches) -> Result<()> {
-        let mut res = BtmCfg::new();
+        let mut cfg = BtmCfg::new();
 
         if let Some(sub_m) = m.subcommand_matches("daemon") {
             // this field should be parsed first
-            res.volume = sub_m
+            cfg.volume = sub_m
                 .value_of("snapshot-volume")
                 .c(d!("'--snapshot-volume' missing"))
                 .map(|t| t.to_owned())
                 .or_else(|e| env::var(ENV_VAR_BTM_VOLUME).c(d!("{}: {}", ENV_VAR_BTM_VOLUME, e)))?;
 
-            res.itv = sub_m
+            cfg.itv = sub_m
                 .value_of("snapshot-itv")
                 .unwrap_or("10")
                 .parse::<u64>()
                 .c(d!())?;
-            res.cap = sub_m
+            cfg.cap = sub_m
                 .value_of("snapshot-cap")
                 .unwrap_or("100")
                 .parse::<u64>()
                 .c(d!())?;
 
             if let Some(sm) = sub_m.value_of("snapshot-mode") {
-                res.mode = SnapMode::from_string(sm).c(d!())?;
-                if matches!(res.mode, SnapMode::External) {
+                cfg.mode = SnapMode::from_string(sm).c(d!())?;
+                if matches!(cfg.mode, SnapMode::External) {
                     return Err(eg!("Running `External` mode in `btm` is not allowed!"));
                 }
             } else {
-                res.mode = BtmCfg::guess_mode(&res.volume).c(d!())?;
+                cfg.mode = BtmCfg::guess_mode(&cfg.volume).c(d!())?;
             }
 
             if let Some(sa) = sub_m.value_of("snapshot-algo") {
-                res.algo = SnapAlgo::from_string(sa).c(d!())?;
-                res.itv.checked_pow(STEP_CNT as u32).c(d!())?;
+                cfg.algo = SnapAlgo::from_string(sa).c(d!())?;
+                cfg.itv.checked_pow(STEP_CNT as u32).c(d!())?;
             }
 
-            run_daemon(res).c(d!())?;
+            run_daemon(cfg).c(d!())?;
         } else {
             // this field should be parsed first
-            res.volume = m
+            cfg.volume = m
                 .value_of("snapshot-volume")
                 .c(d!("'--snapshot-volume' missing"))
                 .map(|t| t.to_owned())
                 .or_else(|e| env::var(ENV_VAR_BTM_VOLUME).c(d!("{}: {}", ENV_VAR_BTM_VOLUME, e)))?;
 
             // the guess should always success in this scene
-            res.mode = BtmCfg::guess_mode(&res.volume).c(d!())?;
+            cfg.mode = BtmCfg::guess_mode(&cfg.volume).c(d!())?;
 
-            if m.is_present("snapshot-list") {
-                list_snapshots(&res).c(d!())?;
+            if m.is_present("snapshot-rollback")
+                || m.is_present("snapshot-rollback-to")
+                || m.is_present("snapshot-rollback-to-exact")
+            {
+                println!("\x1b[31;01m\nNOTE: all related processes must be stopped before the rollback!\x1b[00m");
+
+                let (h, strict) = m
+                    .value_of("snapshot-rollback-to-exact")
+                    .map(|h| (Some(h), true))
+                    .or_else(|| m.value_of("snapshot-rollback-to").map(|h| (Some(h), false)))
+                    .unwrap_or((None, false));
+                let h = if let Some(h) = h {
+                    Some(h.parse::<u64>().c(d!())?)
+                } else {
+                    None
+                };
+                cfg.rollback(h, strict).c(d!())?;
+
+                exit(0);
             } else if m.is_present("snapshot-clean") {
-                clean_snapshots(&res).c(d!())?;
+                clean_snapshots(&cfg).c(d!())?;
+            } else {
+                // - if m.is_present("snapshot-list") {}
+                // - default behavior
+                list_snapshots(&cfg).c(d!())?;
             }
-
-            check_rollback(&m, &res).c(d!())?;
         }
 
         Ok(())
@@ -105,33 +124,6 @@ mod cmd {
     fn clean_snapshots(cfg: &BtmCfg) -> Result<()> {
         cfg.clean_snapshots().c(d!())?;
         exit(0);
-    }
-
-    fn check_rollback(m: &ArgMatches, cfg: &BtmCfg) -> Result<()> {
-        const HINTS: &str = "NOTE: all related processes must be stopped before the rollback!";
-
-        if m.is_present("snapshot-rollback")
-            || m.is_present("snapshot-rollback-to")
-            || m.is_present("snapshot-rollback-to-exact")
-        {
-            println!("\x1b[31;01m\n{}\x1b[00m", HINTS);
-
-            let (h, strict) = m
-                .value_of("snapshot-rollback-to-exact")
-                .map(|h| (Some(h), true))
-                .or_else(|| m.value_of("snapshot-rollback-to").map(|h| (Some(h), false)))
-                .unwrap_or((None, false));
-            let h = if let Some(h) = h {
-                Some(h.parse::<u64>().c(d!())?)
-            } else {
-                None
-            };
-            cfg.rollback(h, strict).c(d!())?;
-
-            exit(0);
-        }
-
-        Ok(())
     }
 
     fn parse_cmdline() -> ArgMatches {

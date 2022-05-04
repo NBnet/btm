@@ -153,24 +153,24 @@ su # swith your user account to 'root'
 
 Usage
 
-	install.sh
-		--snapshot-itv=<ITV>
-		--snapshot-cap=<CAP>
-		--snapshot-mode=<MODE>
-		--snapshot-algo=<ALGO>
-		--snapshot-volume=<VOLUME>
+    install.sh
+        --snapshot-itv=<ITV>
+        --snapshot-cap=<CAP>
+        --snapshot-mode=<MODE>
+        --snapshot-algo=<ALGO>
+        --snapshot-volume=<VOLUME>
 
 Example
 
-	install.sh \
-		--snapshot-itv=4 \
-		--snapshot-cap=100 \
-		--snapshot-mode=zfs \
-		--snapshot-algo=fair \
-		--snapshot-volume=zfs/blockchain
+    install.sh \
+        --snapshot-itv=4 \
+        --snapshot-cap=100 \
+        --snapshot-mode=zfs \
+        --snapshot-algo=fair \
+        --snapshot-volume=zfs/blockchain
 
 Example, short style
 
-	install.sh -i=4 -c=100 -m=zfs -a=fair -p=zfs/blockchain
-	install.sh -i=4 -c=100 -m=btrfs -a=fair -p=/data/blockchain
+    install.sh -i=4 -c=100 -m=zfs -a=fair -p=zfs/blockchain
+    install.sh -i=4 -c=100 -m=btrfs -a=fair -p=/data/blockchain
 ```
