@@ -130,7 +130,7 @@ su # swith your user account to 'root'
         --snapshot-cap=100 \
         --snapshot-mode=zfs \
         --snapshot-algo=fade \
-        --snapshot-target=zfs/data
+        --snapshot-volume=zfs/data
 ```
 
 **Outputs of `systemctl status btm-daemon.service`:**

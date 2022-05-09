@@ -7,7 +7,7 @@ Restart=on-failure
 RestartSec=2s
 
 # NOTE: replace all 'UPPER' words to their actual instances
-ExecStart=/usr/local/bin/btm daemon -p=TARGET -i=ITV -c=CAP -m=MODE -a=ALGO
+ExecStart=/usr/local/bin/btm daemon -p=VOLUME -i=ITV -c=CAP -m=MODE -a=ALGO
 
 [Install]
 WantedBy=multi-user.target
