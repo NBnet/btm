@@ -27,12 +27,21 @@ test:
 fmt:
 	bash tools/fmt.sh 2>/dev/null
 
-pack: release_musl
+pack:
+	if [[ "Linux" == `uname -s` ]]; then \
+		$(MAKE) release_musl; \
+	else \
+		$(MAKE) release; \
+	fi
 	@ rm -rf $(PACKAGE)
 	@ mkdir -p $(PACKAGE)
 	@ cp tools/install.sh $(PACKAGE)/
 	@ cp tools/btm-daemon.service $(PACKAGE)/
-	@ cp $(BUILD_DIR)/x86_64-unknown-linux-musl/release/btm $(PACKAGE)/
+	if [[ "Linux" = `uname -s` ]]; then \
+		cp $(BUILD_DIR)/x86_64-unknown-linux-musl/release/btm $(PACKAGE)/; \
+	else \
+		cp $(BUILD_DIR)/release/btm $(PACKAGE)/; \
+	fi
 	@ tar -zcpf $(PACKAGE_TARGET) $(PACKAGE)
 	@ printf "\n\033[31;01mbuild path:\033[0m $(BUILD_DIR)\n"
 	@ printf "\033[31;01mpackage path:\033[0m $(PACKAGE_TARGET)\n"
