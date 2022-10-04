@@ -1,13 +1,13 @@
 [package]
 name = "btm"
-version = "0.8.1"
+version = "0.8.2"
 edition = "2021"
 keywords = ["vcs", "snapshot", "zfs", "btrfs"]
 license = "MIT"
-authors = ["ccmlm","fanhui.x@gmail.com"]
+authors = ["fanhui.x@gmail.com"]
 description = "Blockchain Time Machine"
-homepage = "https://github.com/ccmlm/btm"
-repository = "https://github.com/ccmlm/btm.git"
+homepage = "https://github.com/rust-util-collections/btm"
+repository = "https://github.com/rust-util-collections/btm.git"
 
 [dependencies]
 ruc = { version = "2.0", features = ["rich"]}
