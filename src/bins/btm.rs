@@ -106,6 +106,9 @@ mod cmd {
                 exit(0);
             } else if m.is_present("snapshot-clean") {
                 clean_snapshots(&cfg).c(d!())?;
+            } else if let Some(n) = m.value_of("snapshot-clean-kept") {
+                cfg.cap_clean_kept = n.parse::<usize>().c(d!())?;
+                clean_snapshots(&cfg).c(d!())?;
             } else {
                 // - if m.is_present("snapshot-list") {}
                 // - default behavior
@@ -122,7 +125,7 @@ mod cmd {
     }
 
     fn clean_snapshots(cfg: &BtmCfg) -> Result<()> {
-        cfg.clean_snapshots().c(d!())?;
+        cfg.clean_snapshots(cfg.cap_clean_kept).c(d!())?;
         exit(0);
     }
 
@@ -145,6 +148,7 @@ mod cmd {
               arg!(-r --"snapshot-rollback-to" [Height] "rollback to a custom height, will try the closest smaller height if the target does not exist"),
               arg!(-R --"snapshot-rollback-to-exact" [Height] "rollback to a custom height exactly, an error will be reported if the target does not exist"),
               arg!(-C --"snapshot-clean" "clean up all existing snapshots"),
+              arg!(-K --"snapshot-clean-kept" [KeptNum] "clean up old snapshots out of kept capacity"),
         ])
         .arg(Arg::new("_a").long("ignored").hide(true))
         .arg(Arg::new("_b").long("nocapture").hide(true))

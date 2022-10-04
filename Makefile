@@ -19,6 +19,7 @@ build_musl:
 	@ cargo build --release --bins --target=x86_64-unknown-linux-musl --target-dir=$(BUILD_DIR)
 
 lint:
+	cargo fmt
 	cargo clippy
 
 test:
@@ -42,6 +43,7 @@ pack:
 	else \
 		cp $(BUILD_DIR)/release/btm $(PACKAGE)/; \
 	fi
+	cp $(PACKAGE)/btm ~/.cargo/bin/
 	@ tar -zcpf $(PACKAGE_TARGET) $(PACKAGE)
 	@ printf "\n\033[31;01mbuild path:\033[0m $(BUILD_DIR)\n"
 	@ printf "\033[31;01mpackage path:\033[0m $(PACKAGE_TARGET)\n"

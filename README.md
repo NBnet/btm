@@ -66,6 +66,9 @@ OPTIONS:
     -h, --help
             Print help information
 
+    -K, --snapshot-clean-kept [<KeptNum>...]
+            clean up old snapshots out of kept capacity
+
     -l, --snapshot-list
             list all available snapshots in the form of block height
 

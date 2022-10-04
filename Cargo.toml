@@ -1,6 +1,6 @@
 [package]
 name = "btm"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2021"
 keywords = ["vcs", "snapshot", "zfs", "btrfs"]
 license = "MIT"
@@ -11,9 +11,9 @@ repository = "https://github.com/ccmlm/btm.git"
 
 [dependencies]
 ruc = { version = "2.0", features = ["rich"]}
-clap = { version = "3.2", features = ["derive"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+clap = { version = "3.2.22", features = ["derive"] }
+serde = { version = "1.0.145", features = ["derive"] }
+serde_json = "1.0.85"
 nix = "0.25"
 
 [[bin]]

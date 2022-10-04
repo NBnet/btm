@@ -41,6 +41,8 @@ pub struct BtmCfg {
     /// the maximum number of snapshots that will be stored, default to 100
     #[clap(short, long, default_value_t = 100)]
     pub cap: u64,
+    /// how many snapshots should be kept after a `clean_snapshots`
+    pub cap_clean_kept: usize,
     /// Zfs or Btrfs or External, will try a guess if missing
     #[clap(short, long, default_value_t = SnapMode::Zfs)]
     pub mode: SnapMode,
@@ -58,6 +60,7 @@ impl Default for BtmCfg {
             enable: false,
             itv: 10,
             cap: 100,
+            cap_clean_kept: 0,
             mode: SnapMode::Zfs,
             algo: SnapAlgo::Fair,
             volume: "zfs/data".to_owned(),
@@ -147,9 +150,9 @@ impl BtmCfg {
     }
 
     /// Clean all existing snapshots.
-    pub fn clean_snapshots(&self) -> Result<()> {
+    pub fn clean_snapshots(&self, n_kept: usize) -> Result<()> {
         self.get_sorted_snapshots().c(d!()).map(|list| {
-            list.into_iter().rev().for_each(|height| {
+            list.into_iter().skip(n_kept).rev().for_each(|height| {
                 let cmd = match self.mode {
                     SnapMode::Btrfs => {
                         format!("btrfs subvolume delete {}@{}", &self.volume, height)
