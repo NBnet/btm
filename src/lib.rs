@@ -150,18 +150,21 @@ impl BtmCfg {
     }
 
     /// Clean all existing snapshots.
-    pub fn clean_snapshots(&self, n_kept: usize) -> Result<()> {
+    pub fn clean_snapshots(&self) -> Result<()> {
         self.get_sorted_snapshots().c(d!()).map(|list| {
-            list.into_iter().skip(n_kept).rev().for_each(|height| {
-                let cmd = match self.mode {
-                    SnapMode::Btrfs => {
-                        format!("btrfs subvolume delete {}@{}", &self.volume, height)
-                    }
-                    SnapMode::Zfs => format!("zfs destroy {}@{}", &self.volume, height),
-                    _ => pnk!(Err(eg!("Unsupported deriver"))),
-                };
-                info_omit!(cmd::exec_output(&cmd));
-            });
+            list.into_iter()
+                .skip(self.cap_clean_kept)
+                .rev()
+                .for_each(|height| {
+                    let cmd = match self.mode {
+                        SnapMode::Btrfs => {
+                            format!("btrfs subvolume delete {}@{}", &self.volume, height)
+                        }
+                        SnapMode::Zfs => format!("zfs destroy {}@{}", &self.volume, height),
+                        _ => pnk!(Err(eg!("Unsupported deriver"))),
+                    };
+                    info_omit!(cmd::exec_output(&cmd));
+                });
         })
     }
 }

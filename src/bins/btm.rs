@@ -125,7 +125,7 @@ mod cmd {
     }
 
     fn clean_snapshots(cfg: &BtmCfg) -> Result<()> {
-        cfg.clean_snapshots(cfg.cap_clean_kept).c(d!())?;
+        cfg.clean_snapshots().c(d!())?;
         exit(0);
     }
 
