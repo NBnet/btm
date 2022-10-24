@@ -53,66 +53,52 @@ cfg.rollback(Some(11), true).unwrap();
 
 **Usage of `btm ...`:**
 
-```shell
-btm
+```
+Usage: btm [OPTIONS] [COMMAND]
 
-USAGE:
-    btm [OPTIONS] [SUBCOMMAND]
+Commands:
+  daemon
+  help    Print this message or the help of the given subcommand(s)
 
-OPTIONS:
-    -C, --snapshot-clean
-            clean up all existing snapshots
-
-    -h, --help
-            Print help information
-
-    -K, --snapshot-clean-kept [<KeptNum>...]
-            clean up old snapshots out of kept capacity
-
-    -l, --snapshot-list
-            list all available snapshots in the form of block height
-
-    -p, --snapshot-volume [<VolumePath>...]
-            a data volume containing your blockchain data
-
-    -r, --snapshot-rollback-to [<Height>...]
-            rollback to a custom height, will try the closest smaller height if the target does not
-            exist
-
-    -R, --snapshot-rollback-to-exact [<Height>...]
-            rollback to a custom height exactly, an error will be reported if the target does not
-            exist
-
-    -x, --snapshot-rollback
-            rollback to the last available snapshot
+Options:
+  -p, --snapshot-volume [<VolumePath>]
+          a data volume containing your blockchain data
+  -l, --snapshot-list
+          list all available snapshots in the form of block height
+  -x, --snapshot-rollback
+          rollback to the last available snapshot
+  -r, --snapshot-rollback-to [<Height>]
+          rollback to a custom height, will try the closest smaller height if the target does not exist
+  -R, --snapshot-rollback-to-exact [<Height>]
+          rollback to a custom height exactly, an error will be reported if the target does not exist
+  -C, --snapshot-clean
+          clean up all existing snapshots
+  -K, --snapshot-clean-kept [<KeptNum>]
+          clean up old snapshots out of kept capacity
+  -h, --help
+          Print help information
+  -V, --version
+          Print version information
 ```
 
 **Usage of `btm daemon ...`:**
 
-```shell
-btm-daemon
+```
+Usage: btm daemon [OPTIONS]
 
-USAGE:
-    btm daemon [OPTIONS]
-
-OPTIONS:
-    -a, --snapshot-algo [<Algo>...]
-            fair/fade, default to `fair`
-
-    -c, --snapshot-cap [<Capacity>...]
-            the maximum number of snapshots that will be stored, default to 100
-
-    -h, --help
-            Print help information
-
-    -i, --snapshot-itv [<Iterval>...]
-            interval between adjacent snapshots, default to 10 blocks
-
-    -m, --snapshot-mode [<Mode>...]
-            zfs/btrfs/external, will try a guess if missing
-
-    -p, --snapshot-volume [<VolumePath>...]
-            a data volume containing your blockchain data
+Options:
+  -p, --snapshot-volume [<VolumePath>]
+          a data volume containing your blockchain data
+  -i, --snapshot-itv [<Iterval>]
+          interval between adjacent snapshots, default to 10 blocks
+  -c, --snapshot-cap [<Capacity>]
+          the maximum number of snapshots that will be stored, default to 100
+  -m, --snapshot-mode [<Mode>]
+          zfs/btrfs/external, will try a guess if missing
+  -a, --snapshot-algo [<Algo>]
+          fair/fade, default to `fair`
+  -h, --help
+          Print help information
 ```
 
 ## Install as a 'systemd service'
@@ -138,7 +124,7 @@ su # swith your user account to 'root'
 
 **Outputs of `systemctl status btm-daemon.service`:**
 
-```shell
+```
 ● btm-daemon.service - "btm daemon"
      Loaded: loaded (/lib/systemd/system/btm-daemon.service; enabled; vendor preset: disabled)
      Active: active (running) since Tue 2021-10-12 21:24:16 CST; 2min 27s ago
@@ -151,7 +137,7 @@ su # swith your user account to 'root'
 
 **Usage of [tools/install.sh](./tools/install.sh):**
 
-```shell
+```
 # tools/install.sh -h
 
 Usage

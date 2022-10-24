@@ -29,7 +29,7 @@ fn main() {
 #[cfg(target_os = "linux")]
 mod cmd {
     use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode, ENV_VAR_BTM_VOLUME, STEP_CNT};
-    use clap::{arg, Arg, ArgMatches, Command};
+    use clap::{arg, crate_version, Arg, ArgMatches, Command};
     use ruc::*;
     use std::{env, process::exit};
 
@@ -43,23 +43,15 @@ mod cmd {
         if let Some(sub_m) = m.subcommand_matches("daemon") {
             // this field should be parsed first
             cfg.volume = sub_m
-                .value_of("snapshot-volume")
+                .get_one::<String>("snapshot-volume")
                 .c(d!("'--snapshot-volume' missing"))
                 .map(|t| t.to_owned())
                 .or_else(|e| env::var(ENV_VAR_BTM_VOLUME).c(d!("{}: {}", ENV_VAR_BTM_VOLUME, e)))?;
 
-            cfg.itv = sub_m
-                .value_of("snapshot-itv")
-                .unwrap_or("10")
-                .parse::<u64>()
-                .c(d!())?;
-            cfg.cap = sub_m
-                .value_of("snapshot-cap")
-                .unwrap_or("100")
-                .parse::<u64>()
-                .c(d!())?;
+            cfg.itv = sub_m.get_one::<u64>("snapshot-itv").copied().unwrap_or(10);
+            cfg.cap = sub_m.get_one::<u64>("snapshot-cap").copied().unwrap_or(100);
 
-            if let Some(sm) = sub_m.value_of("snapshot-mode") {
+            if let Some(sm) = sub_m.get_one::<String>("snapshot-mode") {
                 cfg.mode = SnapMode::from_string(sm).c(d!())?;
                 if matches!(cfg.mode, SnapMode::External) {
                     return Err(eg!("Running `External` mode in `btm` is not allowed!"));
@@ -68,7 +60,7 @@ mod cmd {
                 cfg.mode = BtmCfg::guess_mode(&cfg.volume).c(d!())?;
             }
 
-            if let Some(sa) = sub_m.value_of("snapshot-algo") {
+            if let Some(sa) = sub_m.get_one::<String>("snapshot-algo") {
                 cfg.algo = SnapAlgo::from_string(sa).c(d!())?;
                 cfg.itv.checked_pow(STEP_CNT as u32).c(d!())?;
             }
@@ -77,7 +69,7 @@ mod cmd {
         } else {
             // this field should be parsed first
             cfg.volume = m
-                .value_of("snapshot-volume")
+                .get_one::<String>("snapshot-volume")
                 .c(d!("'--snapshot-volume' missing"))
                 .map(|t| t.to_owned())
                 .or_else(|e| env::var(ENV_VAR_BTM_VOLUME).c(d!("{}: {}", ENV_VAR_BTM_VOLUME, e)))?;
@@ -85,32 +77,30 @@ mod cmd {
             // the guess should always success in this scene
             cfg.mode = BtmCfg::guess_mode(&cfg.volume).c(d!())?;
 
-            if m.is_present("snapshot-rollback")
-                || m.is_present("snapshot-rollback-to")
-                || m.is_present("snapshot-rollback-to-exact")
+            if m.contains_id("snapshot-rollback")
+                || m.contains_id("snapshot-rollback-to")
+                || m.contains_id("snapshot-rollback-to-exact")
             {
                 println!("\x1b[31;01m\nNOTE: all related processes must be stopped before the rollback!\x1b[00m");
 
                 let (h, strict) = m
-                    .value_of("snapshot-rollback-to-exact")
-                    .map(|h| (Some(h), true))
-                    .or_else(|| m.value_of("snapshot-rollback-to").map(|h| (Some(h), false)))
+                    .get_one::<u64>("snapshot-rollback-to-exact")
+                    .map(|h| (Some(*h), true))
+                    .or_else(|| {
+                        m.get_one::<u64>("snapshot-rollback-to")
+                            .map(|h| (Some(*h), false))
+                    })
                     .unwrap_or((None, false));
-                let h = if let Some(h) = h {
-                    Some(h.parse::<u64>().c(d!())?)
-                } else {
-                    None
-                };
                 cfg.rollback(h, strict).c(d!())?;
 
                 exit(0);
-            } else if m.is_present("snapshot-clean") {
+            } else if m.contains_id("snapshot-clean") {
                 clean_snapshots(&cfg).c(d!())?;
-            } else if let Some(n) = m.value_of("snapshot-clean-kept") {
-                cfg.cap_clean_kept = n.parse::<usize>().c(d!())?;
+            } else if let Some(n) = m.get_one::<usize>("snapshot-clean-kept") {
+                cfg.cap_clean_kept = *n;
                 clean_snapshots(&cfg).c(d!())?;
             } else {
-                // - if m.is_present("snapshot-list") {}
+                // - if m.contains_id("snapshot-list") {}
                 // - default behavior
                 list_snapshots(&cfg).c(d!())?;
             }
@@ -131,6 +121,7 @@ mod cmd {
 
     fn parse_cmdline() -> ArgMatches {
         Command::new("btm")
+            .version(crate_version!())
         .subcommand(
             Command::new("daemon")
             .args(&[
@@ -153,7 +144,7 @@ mod cmd {
         .arg(Arg::new("_a").long("ignored").hide(true))
         .arg(Arg::new("_b").long("nocapture").hide(true))
         .arg(Arg::new("_c").long("test-threads").hide(true))
-        .arg(Arg::new("INPUT").multiple_occurrences(true).hide(true))
+        .arg(Arg::new("INPUT").num_args(0..1000).hide(true))
         .get_matches()
     }
 }
