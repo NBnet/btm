@@ -29,7 +29,7 @@ fmt:
 	bash tools/fmt.sh 2>/dev/null
 
 pack:
-	if [[ "Linux" == `uname -s` ]]; then \
+	if [ "Linux" = `uname -s` ]; then \
 		$(MAKE) release_musl; \
 	else \
 		$(MAKE) release; \
@@ -38,7 +38,7 @@ pack:
 	@ mkdir -p $(PACKAGE)
 	@ cp tools/install.sh $(PACKAGE)/
 	@ cp tools/btm-daemon.service $(PACKAGE)/
-	if [[ "Linux" = `uname -s` ]]; then \
+	if [ "Linux" = `uname -s` ]; then \
 		cp $(BUILD_DIR)/x86_64-unknown-linux-musl/release/btm $(PACKAGE)/; \
 	else \
 		cp $(BUILD_DIR)/release/btm $(PACKAGE)/; \
