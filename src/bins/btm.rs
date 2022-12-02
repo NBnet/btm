@@ -51,12 +51,20 @@ mod cmd {
     enum Cmds {
         #[clap(about = "List all existing snapshots")]
         List {
-            #[arg(short = 'p', long, help = "The target volume to operate on")]
+            #[arg(
+                short = 'p',
+                long,
+                help = "The target volume to operate on, if $BTM_VOLUME is specified, this option can be omitted"
+            )]
             volume: Option<String>,
         },
         #[clap(about = "Rollback to the state of an existing snapshot")]
         Rollback {
-            #[arg(short = 'p', long, help = "The target volume to operate on")]
+            #[arg(
+                short = 'p',
+                long,
+                help = "The target volume to operate on, if $BTM_VOLUME is specified, this option can be omitted"
+            )]
             volume: Option<String>,
             #[arg(
                 short,
@@ -65,32 +73,58 @@ mod cmd {
                 help = "The target snapshot to rollback to, a negative value means the latest snapshot"
             )]
             snapshot_id: i128,
-            #[arg(short = 'S', long)]
+            #[arg(
+                short = 'S',
+                long,
+                help = "In this mode, if `snapshot_id` cannot be matched exactly, an error will be returned"
+            )]
             strict: bool,
         },
         #[clap(about = "Clean all or part of existing snapshots")]
         Clean {
-            #[arg(short = 'p', long, help = "The target volume to operate on")]
+            #[arg(
+                short = 'p',
+                long,
+                help = "The target volume to operate on, if $BTM_VOLUME is specified, this option can be omitted"
+            )]
             volume: Option<String>,
             #[arg(
                 short,
                 long,
                 default_value_t = 0,
-                help = "how many snapshots should be kept at least"
+                help = "How many snapshots should be kept"
             )]
             kept: usize,
         },
         #[clap(about = "Run btm as a daemon process")]
         Daemon {
-            #[arg(short = 'p', long, help = "The target volume to operate on")]
+            #[arg(
+                short = 'p',
+                long,
+                help = "The target volume to operate on, if $BTM_VOLUME is specified, this option can be omitted"
+            )]
             volume: Option<String>,
-            #[arg(short, long, default_value_t = 10)]
+            #[arg(
+                short,
+                long,
+                default_value_t = 10,
+                help = "The interval between two adjacent snapshots"
+            )]
             itv: u64,
-            #[arg(short, long, default_value_t = 100)]
+            #[arg(
+                short,
+                long,
+                default_value_t = 100,
+                help = "The maximum number of snapshots to keep, older snapshots will be cleaned up"
+            )]
             cap: u64,
-            #[arg(short, long)]
+            #[arg(
+                short,
+                long,
+                help = "Optional, `zfs` or `btrfs`, case insensitive, will try to automatically identify if not specified"
+            )]
             mode: Option<String>,
-            #[arg(short, long, default_value_t = String::from("Fair"))]
+            #[arg(short, long, default_value_t = String::from("Fair"), help = "fair or fade, case insensitive")]
             algo: String,
         },
     }

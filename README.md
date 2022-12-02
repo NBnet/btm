@@ -69,7 +69,7 @@ Options:
 Usage: btm list [OPTIONS]
 
 Options:
-  -p, --volume <VOLUME>  The target volume to operate on
+  -p, --volume <VOLUME>  The target volume to operate on, if $BTM_VOLUME is specified, this option can be omitted
   -h, --help             Print help information
 ```
 
@@ -77,9 +77,9 @@ Options:
 Usage: btm rollback [OPTIONS]
 
 Options:
-  -p, --volume <VOLUME>            The target volume to operate on
+  -p, --volume <VOLUME>            The target volume to operate on, if $BTM_VOLUME is specified, this option can be omitted
   -s, --snapshot-id <SNAPSHOT_ID>  The target snapshot to rollback to, a negative value means the latest snapshot [default: -1]
-  -S, --strict
+  -S, --strict                     In this mode, if `snapshot_id` cannot be matched exactly, an error will be returned
   -h, --help                       Print help information
 ```
 
@@ -87,8 +87,8 @@ Options:
 Usage: btm clean [OPTIONS]
 
 Options:
-  -p, --volume <VOLUME>  The target volume to operate on
-  -k, --kept <KEPT>      how many snapshots should be kept at least [default: 0]
+  -p, --volume <VOLUME>  The target volume to operate on, if $BTM_VOLUME is specified, this option can be omitted
+  -k, --kept <KEPT>      How many snapshots should be kept [default: 0]
   -h, --help             Print help information
 ```
 
@@ -96,11 +96,11 @@ Options:
 Usage: btm daemon [OPTIONS]
 
 Options:
-  -p, --volume <VOLUME>  The target volume to operate on
-  -i, --itv <ITV>        [default: 10]
-  -c, --cap <CAP>        [default: 100]
-  -m, --mode <MODE>
-  -a, --algo <ALGO>      [default: Fair]
+  -p, --volume <VOLUME>  The target volume to operate on, if $BTM_VOLUME is specified, this option can be omitted
+  -i, --itv <ITV>        The interval between two adjacent snapshots [default: 10]
+  -c, --cap <CAP>        The maximum number of snapshots to keep, older snapshots will be cleaned up [default: 100]
+  -m, --mode <MODE>      Optional, `zfs` or `btrfs`, case insensitive, will try to automatically identify if not specified
+  -a, --algo <ALGO>      fair or fade, case insensitive [default: Fair]
   -h, --help             Print help information
 ```
 

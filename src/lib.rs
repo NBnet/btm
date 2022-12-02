@@ -22,7 +22,8 @@ use std::{fmt, result::Result as StdResult, str::FromStr};
 /// Maximum number of snapshots that can be kept
 pub const CAP_MAX: u64 = 4096;
 
-/// `itv.pow(i)`, only useful in `SnapAlgo::Fade` alfo
+/// `itv.pow(i)`,
+/// only useful within the `SnapAlgo::Fade` algo
 pub const STEP_CNT: usize = 10;
 
 /// Configures of snapshot mgmt
