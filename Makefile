@@ -26,6 +26,9 @@ test:
 	cargo test -- --test-threads=1
 
 fmt:
+	cargo fmt
+
+fmtall:
 	bash tools/fmt.sh 2>/dev/null
 
 pack:

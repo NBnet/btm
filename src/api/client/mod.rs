@@ -1,11 +1,8 @@
-use crate::{
-    api::model::{Req, Resp, SERVER_US_ADDR},
-    BtmCfg,
-};
+use crate::api::model::{Req, Resp, SERVER_US_ADDR};
 use ruc::{uau::UauSock, *};
 
 #[inline(always)]
-pub(crate) fn request_snapshot(_cfg: &BtmCfg, idx: u64) -> Result<()> {
+pub(crate) fn request_snapshot(idx: u64) -> Result<()> {
     // set receive timeout to 500ms, aka 0.5second
     let cli = UauSock::gen(Some(500)).c(d!())?;
     cli.send(

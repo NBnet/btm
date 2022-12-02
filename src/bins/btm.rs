@@ -4,23 +4,28 @@
 //! ## Client Mode
 //!
 //! ```shell
-//! btm --snapshot-volume <VOLUME> --snapshot-list
-//! btm --snapshot-volume <VOLUME> --snapshot-rollback
-//! btm --snapshot-volume <VOLUME> --snapshot-rollback-to <IDX>
-//! btm --snapshot-volume <VOLUME> --snapshot-rollback-to-exact <IDX>
+//! btm list --volume <VOLUME>
+//! btm rollback --volume <VOLUME>
+//! btm rollback --volume <VOLUME> --snapshot-id <IDX>
+//! btm rollback --volume <VOLUME> --snapshot-id <IDX> --strict
+//! btm clean
+//! btm clean --kept 1
 //! ```
 //!
 //! ## Server Mode
 //!
 //! ```shell
 //! btm daemon \
-//!         --snapshot-volume <VOLUME> \
-//!         --snapshot-itv <ITV> \
-//!         --snapshot-cap <CAP> \
-//!         --snapshot-mode <MODE> \
-//!         --snapshot-algo <ALGO> \
+//!         --volume <VOLUME> \
+//!         --itv <ITV> \
+//!         --cap <CAP> \
+//!         --mode <MODE> \
+//!         --algo <ALGO> \
 //! ```
 //!
+
+#![deny(warnings)]
+#![cfg(feature = "bin")]
 
 fn main() {
     cmd::run();
@@ -28,124 +33,136 @@ fn main() {
 
 #[cfg(target_os = "linux")]
 mod cmd {
-    use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode, ENV_VAR_BTM_VOLUME, STEP_CNT};
-    use clap::{arg, crate_version, Arg, ArgMatches, Command};
+    use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode};
+    use clap::{Parser, Subcommand};
     use ruc::*;
-    use std::{env, process::exit};
+    use std::env;
+
+    const ENV_VAR_BTM_VOLUME: &str = "BTM_VOLUME";
+
+    #[derive(Parser)]
+    #[clap(about, version, author)]
+    struct Cfg {
+        #[clap(subcommand)]
+        cmds: Cmds,
+    }
+
+    #[derive(Debug, Subcommand)]
+    enum Cmds {
+        #[clap(about = "List all existing snapshots")]
+        List {
+            #[arg(short = 'p', long, help = "The target volume to operate on")]
+            volume: Option<String>,
+        },
+        #[clap(about = "Rollback to the state of an existing snapshot")]
+        Rollback {
+            #[arg(short = 'p', long, help = "The target volume to operate on")]
+            volume: Option<String>,
+            #[arg(
+                short,
+                long,
+                default_value_t = -1,
+                help = "The target snapshot to rollback to, a negative value means the latest snapshot"
+            )]
+            snapshot_id: i128,
+            #[arg(short = 'S', long)]
+            strict: bool,
+        },
+        #[clap(about = "Clean all or part of existing snapshots")]
+        Clean {
+            #[arg(short = 'p', long, help = "The target volume to operate on")]
+            volume: Option<String>,
+            #[arg(
+                short,
+                long,
+                default_value_t = 0,
+                help = "how many snapshots should be kept at least"
+            )]
+            kept: usize,
+        },
+        #[clap(about = "Run btm as a daemon process")]
+        Daemon {
+            #[arg(short = 'p', long, help = "The target volume to operate on")]
+            volume: Option<String>,
+            #[arg(short, long, default_value_t = 10)]
+            itv: u64,
+            #[arg(short, long, default_value_t = 100)]
+            cap: u64,
+            #[arg(short, long)]
+            mode: Option<String>,
+            #[arg(short, long, default_value_t = String::from("Fair"))]
+            algo: String,
+        },
+    }
 
     pub(super) fn run() {
-        pnk!(run_btm(parse_cmdline()).c(d!()))
+        pnk!(run_btm());
     }
 
-    fn run_btm(m: ArgMatches) -> Result<()> {
-        let mut cfg = BtmCfg::new();
+    fn run_btm() -> Result<()> {
+        let cfg = Cfg::parse();
 
-        if let Some(sub_m) = m.subcommand_matches("daemon") {
-            // this field should be parsed first
-            cfg.volume = sub_m
-                .get_one::<String>("snapshot-volume")
-                .c(d!("'--snapshot-volume' missing"))
-                .map(|t| t.to_owned())
-                .or_else(|e| env::var(ENV_VAR_BTM_VOLUME).c(d!("{}: {}", ENV_VAR_BTM_VOLUME, e)))?;
+        match cfg.cmds {
+            Cmds::List { volume } => volume
+                .c(d!())
+                .or_else(|_| env::var(ENV_VAR_BTM_VOLUME).c(d!()))
+                .and_then(|v| BtmCfg::new(&v, None).c(d!()))?
+                .list_snapshots()
+                .c(d!()),
+            Cmds::Rollback {
+                volume,
+                snapshot_id,
+                strict,
+            } => volume
+                .c(d!())
+                .or_else(|_| env::var(ENV_VAR_BTM_VOLUME).c(d!()))
+                .and_then(|v| BtmCfg::new(&v, None).c(d!()))?
+                .rollback(alt!(0 > snapshot_id, None, Some(snapshot_id)), strict)
+                .c(d!()),
+            Cmds::Clean { volume, kept } => volume
+                .c(d!())
+                .or_else(|_| env::var(ENV_VAR_BTM_VOLUME).c(d!()))
+                .and_then(|v| clean_snapshots(&v, kept).c(d!())),
+            Cmds::Daemon {
+                volume,
+                itv,
+                cap,
+                mode,
+                algo,
+            } => {
+                let volume = volume
+                    .c(d!())
+                    .or_else(|_| env::var(ENV_VAR_BTM_VOLUME).c(d!()))?;
+                let mode = if let Some(m) = mode {
+                    let m = SnapMode::from_string(&m).c(d!())?;
+                    if matches!(m, SnapMode::External) {
+                        return Err(eg!("`External` mode is not allowed in `btm` binary!"));
+                    }
+                    m
+                } else {
+                    SnapMode::guess(&volume).c(d!())?
+                };
 
-            cfg.itv = sub_m.get_one::<u64>("snapshot-itv").copied().unwrap_or(10);
-            cfg.cap = sub_m.get_one::<u64>("snapshot-cap").copied().unwrap_or(100);
+                let algo = SnapAlgo::from_string(&algo).c(d!())?;
 
-            if let Some(sm) = sub_m.get_one::<String>("snapshot-mode") {
-                cfg.mode = SnapMode::from_string(sm).c(d!())?;
-                if matches!(cfg.mode, SnapMode::External) {
-                    return Err(eg!("Running `External` mode in `btm` is not allowed!"));
-                }
-            } else {
-                cfg.mode = BtmCfg::guess_mode(&cfg.volume).c(d!())?;
-            }
-
-            if let Some(sa) = sub_m.get_one::<String>("snapshot-algo") {
-                cfg.algo = SnapAlgo::from_string(sa).c(d!())?;
-                cfg.itv.checked_pow(STEP_CNT as u32).c(d!())?;
-            }
-
-            run_daemon(cfg).c(d!())?;
-        } else {
-            // this field should be parsed first
-            cfg.volume = m
-                .get_one::<String>("snapshot-volume")
-                .c(d!("'--snapshot-volume' missing"))
-                .map(|t| t.to_owned())
-                .or_else(|e| env::var(ENV_VAR_BTM_VOLUME).c(d!("{}: {}", ENV_VAR_BTM_VOLUME, e)))?;
-
-            // the guess should always success in this scene
-            cfg.mode = BtmCfg::guess_mode(&cfg.volume).c(d!())?;
-
-            if m.contains_id("snapshot-rollback")
-                || m.contains_id("snapshot-rollback-to")
-                || m.contains_id("snapshot-rollback-to-exact")
-            {
-                println!("\x1b[31;01m\nNOTE: all related processes must be stopped before the rollback!\x1b[00m");
-
-                let (h, strict) = m
-                    .get_one::<u64>("snapshot-rollback-to-exact")
-                    .map(|h| (Some(*h), true))
-                    .or_else(|| {
-                        m.get_one::<u64>("snapshot-rollback-to")
-                            .map(|h| (Some(*h), false))
-                    })
-                    .unwrap_or((None, false));
-                cfg.rollback(h, strict).c(d!())?;
-
-                exit(0);
-            } else if m.contains_id("snapshot-clean") {
-                clean_snapshots(&cfg).c(d!())?;
-            } else if let Some(n) = m.get_one::<usize>("snapshot-clean-kept") {
-                cfg.cap_clean_kept = *n;
-                clean_snapshots(&cfg).c(d!())?;
-            } else {
-                // - if m.contains_id("snapshot-list") {}
-                // - default behavior
-                list_snapshots(&cfg).c(d!())?;
+                let btmcfg = BtmCfg {
+                    itv,
+                    cap,
+                    // useless in this scene
+                    cap_clean_kept: 0,
+                    mode,
+                    algo,
+                    volume,
+                };
+                run_daemon(btmcfg).c(d!())
             }
         }
-
-        Ok(())
     }
 
-    fn list_snapshots(cfg: &BtmCfg) -> Result<()> {
-        cfg.list_snapshots().c(d!())?;
-        exit(0);
-    }
-
-    fn clean_snapshots(cfg: &BtmCfg) -> Result<()> {
-        cfg.clean_snapshots().c(d!())?;
-        exit(0);
-    }
-
-    fn parse_cmdline() -> ArgMatches {
-        Command::new("btm")
-            .version(crate_version!())
-        .subcommand(
-            Command::new("daemon")
-            .args(&[
-                  arg!(-p --"snapshot-volume" [VolumePath] "a data volume containing your blockchain data"),
-                  arg!(-i --"snapshot-itv" [Iterval] "interval between adjacent snapshots, default to 10 blocks"),
-                  arg!(-c --"snapshot-cap" [Capacity] "the maximum number of snapshots that will be stored, default to 100"),
-                  arg!(-m --"snapshot-mode" [Mode] "zfs/btrfs/external, will try a guess if missing"),
-                  arg!(-a --"snapshot-algo" [Algo] "fair/fade, default to `fair`"),
-            ])
-        )
-        .args(&[
-              arg!(-p --"snapshot-volume" [VolumePath] "a data volume containing your blockchain data"),
-              arg!(-l --"snapshot-list" "list all available snapshots in the form of block height"),
-              arg!(-x --"snapshot-rollback" "rollback to the last available snapshot"),
-              arg!(-r --"snapshot-rollback-to" [Height] "rollback to a custom height, will try the closest smaller height if the target does not exist"),
-              arg!(-R --"snapshot-rollback-to-exact" [Height] "rollback to a custom height exactly, an error will be reported if the target does not exist"),
-              arg!(-C --"snapshot-clean" "clean up all existing snapshots"),
-              arg!(-K --"snapshot-clean-kept" [KeptNum] "clean up old snapshots out of kept capacity"),
-        ])
-        .arg(Arg::new("_a").long("ignored").hide(true))
-        .arg(Arg::new("_b").long("nocapture").hide(true))
-        .arg(Arg::new("_c").long("test-threads").hide(true))
-        .arg(Arg::new("INPUT").num_args(0..1000).hide(true))
-        .get_matches()
+    fn clean_snapshots(volume: &str, kept: usize) -> Result<()> {
+        let mut cfg = BtmCfg::new(volume, None).c(d!())?;
+        cfg.cap_clean_kept = kept;
+        cfg.clean_snapshots().c(d!())
     }
 }
 

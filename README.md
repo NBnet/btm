@@ -26,7 +26,6 @@ btm will give you the following abilities or advantages:
 use btm::{BtmCfg, SnapMode, SnapAlgo};
 
 let cfg = BtmCfg {
-    enable: true,
     itv: 10,
     cap: 100,
     mode: SnapMode::Zfs,
@@ -51,54 +50,58 @@ cfg.rollback(Some(11), true).unwrap();
 
 ## Binary Usages
 
-**Usage of `btm ...`:**
-
 ```
-Usage: btm [OPTIONS] [COMMAND]
+Usage: btm <COMMAND>
 
 Commands:
-  daemon
-  help    Print this message or the help of the given subcommand(s)
+  list      List all existing snapshots
+  rollback  Rollback to the state of an existing snapshot
+  clean     Clean all or part of existing snapshots
+  daemon    Run btm as a daemon process
+  help      Print this message or the help of the given subcommand(s)
 
 Options:
-  -p, --snapshot-volume [<VolumePath>]
-          a data volume containing your blockchain data
-  -l, --snapshot-list
-          list all available snapshots in the form of block height
-  -x, --snapshot-rollback
-          rollback to the last available snapshot
-  -r, --snapshot-rollback-to [<Height>]
-          rollback to a custom height, will try the closest smaller height if the target does not exist
-  -R, --snapshot-rollback-to-exact [<Height>]
-          rollback to a custom height exactly, an error will be reported if the target does not exist
-  -C, --snapshot-clean
-          clean up all existing snapshots
-  -K, --snapshot-clean-kept [<KeptNum>]
-          clean up old snapshots out of kept capacity
-  -h, --help
-          Print help information
-  -V, --version
-          Print version information
+  -h, --help     Print help information
+  -V, --version  Print version information
 ```
 
-**Usage of `btm daemon ...`:**
+```
+Usage: btm list [OPTIONS]
+
+Options:
+  -p, --volume <VOLUME>  The target volume to operate on
+  -h, --help             Print help information
+```
+
+```
+Usage: btm rollback [OPTIONS]
+
+Options:
+  -p, --volume <VOLUME>            The target volume to operate on
+  -s, --snapshot-id <SNAPSHOT_ID>  The target snapshot to rollback to, a negative value means the latest snapshot [default: -1]
+  -S, --strict
+  -h, --help                       Print help information
+```
+
+```
+Usage: btm clean [OPTIONS]
+
+Options:
+  -p, --volume <VOLUME>  The target volume to operate on
+  -k, --kept <KEPT>      how many snapshots should be kept at least [default: 0]
+  -h, --help             Print help information
+```
 
 ```
 Usage: btm daemon [OPTIONS]
 
 Options:
-  -p, --snapshot-volume [<VolumePath>]
-          a data volume containing your blockchain data
-  -i, --snapshot-itv [<Iterval>]
-          interval between adjacent snapshots, default to 10 blocks
-  -c, --snapshot-cap [<Capacity>]
-          the maximum number of snapshots that will be stored, default to 100
-  -m, --snapshot-mode [<Mode>]
-          zfs/btrfs/external, will try a guess if missing
-  -a, --snapshot-algo [<Algo>]
-          fair/fade, default to `fair`
-  -h, --help
-          Print help information
+  -p, --volume <VOLUME>  The target volume to operate on
+  -i, --itv <ITV>        [default: 10]
+  -c, --cap <CAP>        [default: 100]
+  -m, --mode <MODE>
+  -a, --algo <ALGO>      [default: Fair]
+  -h, --help             Print help information
 ```
 
 ## Install as a 'systemd service'

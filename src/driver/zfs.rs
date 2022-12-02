@@ -31,14 +31,16 @@ pub(crate) fn sorted_snapshots(cfg: &BtmCfg) -> Result<Vec<u64>> {
     Ok(res)
 }
 
-pub(crate) fn rollback(cfg: &BtmCfg, idx: Option<u64>, strict: bool) -> Result<()> {
+pub(crate) fn rollback(cfg: &BtmCfg, idx: Option<i128>, strict: bool) -> Result<()> {
     // convert to AESC order for `binary_search`
     let mut snaps = sorted_snapshots(cfg).c(d!())?;
     // convert to AESC order for `binary_search`
     snaps.reverse();
     alt!(snaps.is_empty(), return Err(eg!("no snapshots")));
 
-    let idx = idx.unwrap_or_else(|| snaps[snaps.len() - 1]);
+    let idx = idx
+        .map(|i| i as u64)
+        .unwrap_or_else(|| snaps[snaps.len() - 1]);
 
     let cmd = match snaps.binary_search(&idx) {
         Ok(_) => {
@@ -113,6 +115,7 @@ fn clean_outdated_fade(cfg: &BtmCfg) -> Result<()> {
     let snaps = sorted_snapshots(cfg).c(d!())?;
     let cap = cfg.get_cap() as usize;
 
+    cfg.check().c(d!())?;
     let chunk_size = cap / STEP_CNT;
     let chunk_denominators = (0..STEP_CNT as u32).map(|n| cfg.itv.pow(1 + n));
 

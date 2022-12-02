@@ -15,7 +15,6 @@ mod driver;
 
 pub use api::server::run_daemon;
 
-use clap::Parser;
 use driver::{btrfs, external, zfs};
 use ruc::{cmd, *};
 use std::{fmt, result::Result as StdResult, str::FromStr};
@@ -26,74 +25,50 @@ pub const CAP_MAX: u64 = 4096;
 /// `itv.pow(i)`, only useful in `SnapAlgo::Fade` alfo
 pub const STEP_CNT: usize = 10;
 
-/// The co-responding VAR-name of `--snapshot-volume`
-pub const ENV_VAR_BTM_VOLUME: &str = "BTM_VOLUME";
-
-/// Config structure of snapshot
-#[derive(Clone, Debug, Parser)]
+/// Configures of snapshot mgmt
+#[derive(Clone, Debug)]
 pub struct BtmCfg {
-    /// a global switch for enabling snapshot functions
-    #[clap(long)]
-    pub enable: bool,
-    /// interval between adjacent snapshots, default to 10 blocks
-    #[clap(short, long, default_value_t = 10)]
+    /// The interval between adjacent snapshots, default to 10 blocks
     pub itv: u64,
-    /// the maximum number of snapshots that will be stored, default to 100
-    #[clap(short, long, default_value_t = 100)]
+    /// The maximum number of snapshots that will be stored, default to 100
     pub cap: u64,
-    /// how many snapshots should be kept after a `clean_snapshots`
+    /// How many snapshots should be kept after a `clean_snapshots`, default to 0
     pub cap_clean_kept: usize,
-    /// Zfs or Btrfs or External, will try a guess if missing
-    #[clap(short, long, default_value_t = SnapMode::Zfs)]
+    /// Zfs or Btrfs or External, should try a guess if missing
     pub mode: SnapMode,
     /// Fair or Fade, default to 'Fair'
-    #[clap(short, long, default_value_t = SnapAlgo::Fair)]
     pub algo: SnapAlgo,
-    /// a data volume containing both ledger data and tendermint data
-    #[clap(short = 'p', long, default_value_t = String::from("zfs/data"))]
+    /// A data volume containing all blockchain data
     pub volume: String,
 }
 
-impl Default for BtmCfg {
-    fn default() -> Self {
-        BtmCfg {
-            enable: false,
+impl BtmCfg {
+    // Check mistakes
+    fn check(&self) -> Result<()> {
+        self.itv.checked_pow(STEP_CNT as u32).c(d!()).map(|_| ())
+    }
+
+    /// Create a simple instance
+    #[inline(always)]
+    pub fn new(volume: &str, mode: Option<&str>) -> Result<Self> {
+        let mode = if let Some(m) = mode {
+            SnapMode::from_str(m).map_err(|e| eg!(e))?
+        } else {
+            SnapMode::guess(volume).c(d!())?
+        };
+        Ok(Self {
             itv: 10,
             cap: 100,
             cap_clean_kept: 0,
-            mode: SnapMode::Zfs,
+            mode,
             algo: SnapAlgo::Fair,
-            volume: "zfs/data".to_owned(),
-        }
-    }
-}
-
-impl BtmCfg {
-    /// create a simple instance
-    #[inline(always)]
-    pub fn new() -> Self {
-        Self::new_enabled()
+            volume: volume.to_owned(),
+        })
     }
 
-    #[inline(always)]
-    fn new_enabled() -> Self {
-        BtmCfg {
-            enable: true,
-            ..Self::default()
-        }
-    }
-
-    /// Used in client side
-    #[inline(always)]
-    pub fn new_client_hdr() -> Self {
-        Self::new_enabled()
-    }
-
-    /// generate a snapshot for the latest state of blockchain
+    /// Generate a snapshot for the latest state of blockchain
     #[inline(always)]
     pub fn snapshot(&self, idx: u64) -> Result<()> {
-        alt!(!self.enable, return Ok(()));
-
         // sync data to disk before snapshoting
         nix::unistd::sync();
 
@@ -104,13 +79,13 @@ impl BtmCfg {
         }
     }
 
-    /// rollback the state of blockchain to a specificed height
+    /// Rollback the state of blockchain to a specificed height
     #[inline(always)]
-    pub fn rollback(&self, idx: Option<u64>, strict: bool) -> Result<()> {
+    pub fn rollback(&self, idx: Option<i128>, strict: bool) -> Result<()> {
         match self.mode {
             SnapMode::Zfs => zfs::rollback(self, idx, strict).c(d!()),
             SnapMode::Btrfs => btrfs::rollback(self, idx, strict).c(d!()),
-            SnapMode::External => Err(eg!("please use `btm` tool in `External` mode")),
+            SnapMode::External => Err(eg!("please use the `btm` tool in `External` mode")),
         }
     }
 
@@ -122,16 +97,6 @@ impl BtmCfg {
             SnapMode::Btrfs => btrfs::sorted_snapshots(self).c(d!()),
             SnapMode::External => Err(eg!("please use `btm` tool in `External` mode")),
         }
-    }
-
-    /// try to guess a correct mode
-    /// NOTE: not suitable for `External` mode
-    #[inline(always)]
-    pub fn guess_mode(volume: &str) -> Result<SnapMode> {
-        zfs::check(volume)
-            .c(d!())
-            .map(|_| SnapMode::Zfs)
-            .or_else(|e| btrfs::check(volume).c(d!(e)).map(|_| SnapMode::Btrfs))
     }
 
     #[inline(always)]
@@ -201,17 +166,16 @@ impl BtmCfg {
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub enum SnapMode {
-    /// available on some Linux distributions and FreeBSD
+    /// Available on some Linux distributions and FreeBSD
     /// - Ubuntu Linux
     /// - Gentoo Linux
     /// - FreeBSD
     /// - ...
     Zfs,
-    /// available on most Linux distributions,
+    /// Available on most Linux distributions,
     /// but its user experience is worse than zfs
     Btrfs,
-    /// TODO: unimplemented!
-    /// rely on an external independent process
+    /// Rely on an external independent process
     External,
 }
 
@@ -226,11 +190,22 @@ impl SnapMode {
             _ => Err(eg!()),
         }
     }
+
+    /// Try to determine which mode can be used on the target volume
+    ///
+    /// NOTE:
+    /// not suitable for the `External` mode.
+    pub fn guess(volume: &str) -> Result<Self> {
+        zfs::check(volume)
+            .c(d!())
+            .map(|_| SnapMode::Zfs)
+            .or_else(|e| btrfs::check(volume).c(d!(e)).map(|_| SnapMode::Btrfs))
+    }
 }
 
 impl Default for SnapMode {
     fn default() -> Self {
-        Self::Zfs
+        Self::External
     }
 }
 
