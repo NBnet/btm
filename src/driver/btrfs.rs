@@ -4,6 +4,10 @@ use std::path::PathBuf;
 
 #[inline(always)]
 pub(crate) fn gen_snapshot(cfg: &BtmCfg, idx: u64) -> Result<()> {
+    if sorted_snapshots(cfg).c(d!())?.contains(&idx) {
+        return Err(eg!("Snapshot {} already exists!", idx));
+    }
+
     alt!(0 != (u64::MAX - idx) % cfg.itv as u64, return Ok(()));
     clean_outdated(cfg).c(d!())?;
     let cmd = format!(
@@ -32,6 +36,7 @@ pub(crate) fn sorted_snapshots(cfg: &BtmCfg) -> Result<Vec<u64>> {
         .map(|l| l.parse::<u64>().c(d!()))
         .collect::<Result<Vec<u64>>>()?;
     res.sort_unstable_by(|a, b| b.cmp(a));
+    //res.dedup();
 
     Ok(res)
 }

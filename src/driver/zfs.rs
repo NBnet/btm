@@ -3,6 +3,10 @@ use ruc::{cmd::exec_output, *};
 
 #[inline(always)]
 pub(crate) fn gen_snapshot(cfg: &BtmCfg, idx: u64) -> Result<()> {
+    if sorted_snapshots(cfg).c(d!())?.contains(&idx) {
+        return Err(eg!("Snapshot {} already exists!", idx));
+    }
+
     alt!(0 != (u64::MAX - idx) % cfg.itv as u64, return Ok(()));
     clean_outdated(cfg).c(d!())?;
     let cmd = format!(
@@ -17,7 +21,7 @@ pub(crate) fn gen_snapshot(cfg: &BtmCfg, idx: u64) -> Result<()> {
 
 pub(crate) fn sorted_snapshots(cfg: &BtmCfg) -> Result<Vec<u64>> {
     let cmd = format!(
-        r"zfs list -t snapshot {} | grep -o '@[0-9]\+' | sed 's/@//'",
+        r"zfs list -t snapshot -r {} | grep -o '@[0-9]\+' | sed 's/@//'",
         &cfg.volume
     );
     let output = exec_output(&cmd).c(d!())?;
@@ -27,6 +31,7 @@ pub(crate) fn sorted_snapshots(cfg: &BtmCfg) -> Result<Vec<u64>> {
         .map(|l| l.parse::<u64>().c(d!()))
         .collect::<Result<Vec<u64>>>()?;
     res.sort_unstable_by(|a, b| b.cmp(a));
+    //res.dedup();
 
     Ok(res)
 }
@@ -68,7 +73,7 @@ pub(crate) fn rollback(cfg: &BtmCfg, idx: Option<i128>, strict: bool) -> Result<
 
 #[inline(always)]
 pub(crate) fn check(volume: &str) -> Result<()> {
-    let cmd = format!("zfs list {0} || zfs create {0}", volume);
+    let cmd = format!("zfs list -r {0} || zfs create {0}", volume);
     exec_output(&cmd).c(d!()).map(|_| ())
 }
 
