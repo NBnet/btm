@@ -1,7 +1,6 @@
-![GitHub top language](https://img.shields.io/github/languages/top/ccmlm/btm)
+![GitHub top language](https://img.shields.io/github/languages/top/rust-util-collections/btm)
 [![Latest Version](https://img.shields.io/crates/v/btm.svg)](https://crates.io/crates/btm)
 [![Rust Documentation](https://img.shields.io/badge/api-rustdoc-blue.svg)](https://docs.rs/btm)
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/ccmlm/btm/Rust)
 [![Minimum rustc version](https://img.shields.io/badge/rustc-1.63+-lightgray.svg)](https://github.com/rust-random/rand#rust-version-requirements)
 
 # BTM
