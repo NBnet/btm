@@ -33,6 +33,9 @@ fmtall:
 
 pack:
 	if [ "Linux" = `uname -s` ]; then \
+		if [ 0 -eq `rustup target list --installed | grep -c 'musl'` ]; \
+			then rustup target add x86_64-unknown-linux-musl; \
+		fi; \
 		$(MAKE) release_musl; \
 	else \
 		$(MAKE) release; \

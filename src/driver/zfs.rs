@@ -7,7 +7,7 @@ pub(crate) fn gen_snapshot(cfg: &BtmCfg, idx: u64) -> Result<()> {
         return Err(eg!("Snapshot {} already exists!", idx));
     }
 
-    alt!(0 != (u64::MAX - idx) % cfg.itv as u64, return Ok(()));
+    alt!(0 != (u64::MAX - idx) % cfg.itv, return Ok(()));
     clean_outdated(cfg).c(d!())?;
     let cmd = format!(
         "
@@ -138,7 +138,7 @@ fn clean_outdated_fade(cfg: &BtmCfg) -> Result<()> {
         };
 
         pair.0.iter().for_each(|n| {
-            if 0 != (u64::MAX - n) % denominator as u64 {
+            if 0 != (u64::MAX - n) % denominator {
                 let cmd = format!("zfs destroy {}@{}", &cfg.volume, n);
                 info_omit!(exec_output(&cmd));
             }
