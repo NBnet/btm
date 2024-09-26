@@ -55,7 +55,7 @@ pack:
 	@ printf "\033[31;01mpackage path:\033[0m $(PACKAGE_TARGET)\n"
 
 update:
-	cargo update
+	cargo update --verbose
 
 clean:
 	cargo clean
