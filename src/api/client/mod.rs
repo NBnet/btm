@@ -4,7 +4,7 @@ use ruc::{uau::UauSock, *};
 #[inline(always)]
 pub(crate) fn request_snapshot(idx: u64) -> Result<()> {
     // set receive timeout to 500ms, aka 0.5second
-    let cli = UauSock::gen(Some(500)).c(d!())?;
+    let cli = UauSock::create(Some(500)).c(d!())?;
     cli.send(
         &Req::new(idx).to_bytes(),
         &pnk!(UauSock::addr_to_sock(SERVER_US_ADDR)),

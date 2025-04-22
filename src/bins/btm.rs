@@ -33,7 +33,7 @@ fn main() {
 
 #[cfg(target_os = "linux")]
 mod cmd {
-    use btm::{run_daemon, BtmCfg, SnapAlgo, SnapMode};
+    use btm::{BtmCfg, SnapAlgo, SnapMode, run_daemon};
     use clap::{Parser, Subcommand};
     use ruc::*;
     use std::env;

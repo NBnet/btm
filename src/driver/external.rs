@@ -2,7 +2,7 @@
 //! Only useful in client-end
 //!
 
-use crate::{api::client, BtmCfg};
+use crate::{BtmCfg, api::client};
 use ruc::*;
 
 #[inline(always)]
