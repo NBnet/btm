@@ -1,4 +1,4 @@
-use crate::{BtmCfg, SnapAlgo, STEP_CNT};
+use crate::{BtmCfg, STEP_CNT, SnapAlgo};
 use ruc::{cmd::exec_output, *};
 
 #[inline(always)]

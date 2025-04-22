@@ -3,8 +3,8 @@
 //!
 
 use crate::{
-    api::model::{Req, Resp, SERVER_US_ADDR},
     BtmCfg,
+    api::model::{Req, Resp, SERVER_US_ADDR},
 };
 use ruc::{uau::UauSock, *};
 
