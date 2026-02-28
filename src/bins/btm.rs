@@ -33,7 +33,7 @@ fn main() {
 
 #[cfg(target_os = "linux")]
 mod cmd {
-    use btm::{BtmCfg, SnapAlgo, SnapMode, run_daemon};
+    use btm::{BtmCfg, SnapMode, run_daemon};
     use clap::{Parser, Subcommand};
     use ruc::*;
     use std::env;
@@ -168,7 +168,7 @@ mod cmd {
                     .c(d!())
                     .or_else(|_| env::var(ENV_VAR_BTM_VOLUME).c(d!()))?;
                 let mode = if let Some(m) = mode {
-                    let m = SnapMode::from_string(&m).c(d!())?;
+                    let m: SnapMode = m.parse().map_err(|e| eg!(e))?;
                     if matches!(m, SnapMode::External) {
                         return Err(eg!("`External` mode is not allowed in `btm` binary!"));
                     }
@@ -177,7 +177,7 @@ mod cmd {
                     SnapMode::guess(&volume).c(d!())?
                 };
 
-                let algo = SnapAlgo::from_string(&algo).c(d!())?;
+                let algo = algo.parse().map_err(|e: String| eg!(e))?;
 
                 let btmcfg = BtmCfg {
                     itv,
@@ -188,6 +188,7 @@ mod cmd {
                     algo,
                     volume,
                 };
+                btmcfg.validate_params().c(d!())?;
                 run_daemon(btmcfg).c(d!())
             }
         }

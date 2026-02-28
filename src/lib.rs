@@ -44,14 +44,10 @@ pub struct BtmCfg {
 }
 
 impl BtmCfg {
-    // Check mistakes
-    fn check(&self) -> Result<()> {
-        self.itv.checked_pow(STEP_CNT as u32).c(d!()).map(|_| ())
-    }
-
     /// Create a simple instance
     #[inline(always)]
     pub fn new(volume: &str, mode: Option<&str>) -> Result<Self> {
+        Self::validate_volume(volume).c(d!())?;
         let mode = if let Some(m) = mode {
             SnapMode::from_str(m).map_err(|e| eg!(e))?
         } else {
@@ -67,10 +63,41 @@ impl BtmCfg {
         })
     }
 
+    /// Validate volume name to prevent shell command injection.
+    /// Only allows alphanumeric characters, `/`, `-`, `_`, and `.`.
+    fn validate_volume(volume: &str) -> Result<()> {
+        if volume.is_empty() {
+            return Err(eg!("volume name cannot be empty"));
+        }
+        if !volume
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'))
+        {
+            return Err(eg!(
+                "invalid volume name: only alphanumeric, '/', '-', '_', '.' are allowed"
+            ));
+        }
+        Ok(())
+    }
+
+    /// Validate configuration parameters.
+    pub(crate) fn validate_params(&self) -> Result<()> {
+        if self.itv < 1 {
+            return Err(eg!("itv must be >= 1"));
+        }
+        if self.cap < 1 {
+            return Err(eg!("cap must be >= 1"));
+        }
+        self.itv
+            .checked_pow(STEP_CNT as u32)
+            .c(d!("itv is too large, causes overflow"))?;
+        Ok(())
+    }
+
     /// Generate a snapshot for the latest state of blockchain
     #[inline(always)]
     pub fn snapshot(&self, idx: u64) -> Result<()> {
-        // sync data to disk before snapshoting
+        // sync data to disk before snapshotting
         nix::unistd::sync();
 
         match self.mode {
@@ -80,7 +107,7 @@ impl BtmCfg {
         }
     }
 
-    /// Rollback the state of blockchain to a specificed height
+    /// Rollback the state of blockchain to a specified height
     #[inline(always)]
     pub fn rollback(&self, idx: Option<i128>, strict: bool) -> Result<()> {
         match self.mode {
@@ -117,21 +144,23 @@ impl BtmCfg {
 
     /// Clean all existing snapshots.
     pub fn clean_snapshots(&self) -> Result<()> {
-        self.get_sorted_snapshots().c(d!()).map(|list| {
-            list.into_iter()
-                .skip(self.cap_clean_kept)
-                .rev()
-                .for_each(|height| {
-                    let cmd = match self.mode {
-                        SnapMode::Btrfs => {
-                            format!("btrfs subvolume delete {}@{}", &self.volume, height)
-                        }
-                        SnapMode::Zfs => format!("zfs destroy {}@{}", &self.volume, height),
-                        _ => pnk!(Err(eg!("Unsupported deriver"))),
-                    };
-                    info_omit!(cmd::exec_output(&cmd));
-                });
-        })
+        if matches!(self.mode, SnapMode::External) {
+            return Err(eg!(
+                "Unsupported driver: External mode does not support clean_snapshots"
+            ));
+        }
+        let list = self.get_sorted_snapshots().c(d!())?;
+        for height in list.into_iter().skip(self.cap_clean_kept).rev() {
+            let cmd = match self.mode {
+                SnapMode::Btrfs => {
+                    format!("btrfs subvolume delete {}@{}", &self.volume, height)
+                }
+                SnapMode::Zfs => format!("zfs destroy {}@{}", &self.volume, height),
+                SnapMode::External => unreachable!(),
+            };
+            info_omit!(cmd::exec_output(&cmd));
+        }
+        Ok(())
     }
 }
 
@@ -181,17 +210,6 @@ pub enum SnapMode {
 }
 
 impl SnapMode {
-    #[inline(always)]
-    #[allow(missing_docs)]
-    pub fn from_string(m: &str) -> Result<Self> {
-        match m.to_lowercase().as_str() {
-            "zfs" => Ok(Self::Zfs),
-            "btrfs" => Ok(Self::Btrfs),
-            "external" => Ok(Self::External),
-            _ => Err(eg!()),
-        }
-    }
-
     /// Try to determine which mode can be used on the target volume
     ///
     /// NOTE:
@@ -201,12 +219,6 @@ impl SnapMode {
             .c(d!())
             .map(|_| SnapMode::Zfs)
             .or_else(|e| btrfs::check(volume).c(d!(e)).map(|_| SnapMode::Btrfs))
-    }
-}
-
-impl Default for SnapMode {
-    fn default() -> Self {
-        Self::External
     }
 }
 
@@ -224,7 +236,12 @@ impl fmt::Display for SnapMode {
 impl FromStr for SnapMode {
     type Err = String;
     fn from_str(s: &str) -> StdResult<Self, Self::Err> {
-        Self::from_string(s).c(d!()).map_err(|e| e.to_string())
+        match s.to_lowercase().as_str() {
+            "zfs" => Ok(Self::Zfs),
+            "btrfs" => Ok(Self::Btrfs),
+            "external" => Ok(Self::External),
+            _ => Err(format!("unknown snap mode: '{}'", s)),
+        }
     }
 }
 
@@ -235,18 +252,6 @@ pub enum SnapAlgo {
     Fair,
     /// snapshots are saved in decreasing density
     Fade,
-}
-
-impl SnapAlgo {
-    #[inline(always)]
-    #[allow(missing_docs)]
-    pub fn from_string(m: &str) -> Result<Self> {
-        match m.to_lowercase().as_str() {
-            "fair" => Ok(Self::Fair),
-            "fade" => Ok(Self::Fade),
-            _ => Err(eg!()),
-        }
-    }
 }
 
 impl Default for SnapAlgo {
@@ -268,6 +273,10 @@ impl fmt::Display for SnapAlgo {
 impl FromStr for SnapAlgo {
     type Err = String;
     fn from_str(s: &str) -> StdResult<Self, Self::Err> {
-        Self::from_string(s).c(d!()).map_err(|e| e.to_string())
+        match s.to_lowercase().as_str() {
+            "fair" => Ok(Self::Fair),
+            "fade" => Ok(Self::Fade),
+            _ => Err(format!("unknown snap algo: '{}'", s)),
+        }
     }
 }

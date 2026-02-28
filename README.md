@@ -28,6 +28,7 @@ use btm::{BtmCfg, SnapMode, SnapAlgo};
 let cfg = BtmCfg {
     itv: 10,
     cap: 100,
+    cap_clean_kept: 0,
     mode: SnapMode::Zfs,
     algo: SnapAlgo::Fade,
     volume: "zroot/data".to_owned(),
@@ -38,13 +39,13 @@ cfg.snapshot(0).unwrap();
 cfg.snapshot(1).unwrap();
 cfg.snapshot(11).unwrap();
 
-/// Print all existing snapshots.
+// Print all existing snapshots.
 cfg.list_snapshots();
 
-/// Rollback to the state of the last snapshot.
+// Rollback to the state of the last snapshot.
 cfg.rollback(None, false).unwrap();
 
-/// Rollback to the state of a custom snapshot.
+// Rollback to the state of a custom snapshot.
 cfg.rollback(Some(11), true).unwrap();
 ```
 
