@@ -37,22 +37,19 @@ pack:
 			then rustup target add x86_64-unknown-linux-musl; \
 		fi; \
 		$(MAKE) release_musl; \
-	else \
-		$(MAKE) release; \
-	fi
-	@ rm -rf $(PACKAGE)
-	@ mkdir -p $(PACKAGE)
-	@ cp tools/install.sh $(PACKAGE)/
-	@ cp tools/btm-daemon.service $(PACKAGE)/
-	if [ "Linux" = `uname -s` ]; then \
+		rm -rf $(PACKAGE); \
+		mkdir -p $(PACKAGE); \
+		cp tools/install.sh $(PACKAGE)/; \
+		cp tools/btm-daemon.service $(PACKAGE)/; \
 		cp $(BUILD_DIR)/x86_64-unknown-linux-musl/release/btm $(PACKAGE)/; \
+		cp $(PACKAGE)/btm ~/.cargo/bin/; \
+		tar -zcpf $(PACKAGE_TARGET) $(PACKAGE); \
+		printf "\n\033[31;01mbuild path:\033[0m $(BUILD_DIR)\n"; \
+		printf "\033[31;01mpackage path:\033[0m $(PACKAGE_TARGET)\n"; \
 	else \
-		cp $(BUILD_DIR)/release/btm $(PACKAGE)/; \
+		$(MAKE) build; \
+		printf "\n\033[33;01mWarning: 'btm' is designed for Linux. On other platforms, it only supports compilation for verification.\033[0m\n"; \
 	fi
-	cp $(PACKAGE)/btm ~/.cargo/bin/
-	@ tar -zcpf $(PACKAGE_TARGET) $(PACKAGE)
-	@ printf "\n\033[31;01mbuild path:\033[0m $(BUILD_DIR)\n"
-	@ printf "\033[31;01mpackage path:\033[0m $(PACKAGE_TARGET)\n"
 
 update:
 	cargo update --verbose

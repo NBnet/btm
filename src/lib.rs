@@ -1,9 +1,14 @@
 //!
-//! # A Recover Mechanism for Blockchain Scene
+//! # BTM
 //!
-//! automatic operations:
-//! - create a light-weight(COW) snapshot for each block
-//! - clean up expired snapshots
+//! Blockchain Time Machine.
+//!
+//! BTM is an incremental data backup mechanism that does not require downtime.
+//!
+//! - rollback to the state of a desired block height
+//! - hot backup during operation, no downtime is needed
+//! - based on OS-level infrastructure, stable and reliable
+//! - very small resource usage, almost no performance damage
 //!
 
 #![cfg(target_os = "linux")]

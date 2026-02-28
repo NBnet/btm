@@ -203,5 +203,7 @@ mod cmd {
 
 #[cfg(not(target_os = "linux"))]
 mod cmd {
-    pub(super) fn run() {}
+    pub(super) fn run() {
+        println!("Warning: 'btm' is designed for Linux. On other platforms, it only supports compilation for verification.");
+    }
 }

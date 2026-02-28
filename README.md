@@ -2,11 +2,13 @@
 [![Latest Version](https://img.shields.io/crates/v/btm.svg)](https://crates.io/crates/btm)
 [![Rust Documentation](https://img.shields.io/badge/api-rustdoc-blue.svg)](https://docs.rs/btm)
 [![Rust](https://github.com/rust-util-collections/btm/actions/workflows/rust.yml/badge.svg)](https://github.com/rust-util-collections/btm/actions/workflows/rust.yml)
-[![Minimum rustc version](https://img.shields.io/badge/rustc-1.81+-lightgray.svg)](https://github.com/rust-random/rand#rust-version-requirements)
+[![Minimum rustc version](https://img.shields.io/badge/rustc-1.85+-lightgray.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 
 # BTM
 
 Blockchain Time Machine.
+
+**NOTE: BTM is designed for Linux. On other platforms, it only supports compilation for verification.**
 
 BTM is an incremental data backup mechanism that does not require downtime.
 
