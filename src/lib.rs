@@ -158,7 +158,7 @@ impl BtmCfg {
                 SnapMode::Zfs => format!("zfs destroy {}@{}", &self.volume, height),
                 SnapMode::External => unreachable!(),
             };
-            info_omit!(cmd::exec_output(&cmd));
+            info_omit!(cmd::exec(&cmd));
         }
         Ok(())
     }

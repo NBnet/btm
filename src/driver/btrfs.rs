@@ -1,6 +1,6 @@
 use super::SnapDriver;
 use crate::BtmCfg;
-use ruc::{cmd::exec_output, *};
+use ruc::{cmd::exec, *};
 use std::path::PathBuf;
 
 pub(crate) struct Btrfs;
@@ -51,7 +51,7 @@ impl SnapDriver for Btrfs {
             .collect::<Vec<_>>()
             .join(" ");
         let cmd = format!("btrfs subvolume delete {}", list);
-        info_omit!(exec_output(&cmd));
+        info_omit!(exec(&cmd));
     }
 }
 

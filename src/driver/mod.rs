@@ -3,7 +3,7 @@ pub mod external;
 pub mod zfs;
 
 use crate::{BtmCfg, STEP_CNT, SnapAlgo};
-use ruc::{cmd::exec_output, *};
+use ruc::{cmd::exec, *};
 
 /// Trait abstracting filesystem-specific snapshot commands.
 /// ZFS and Btrfs each implement this trait; the shared orchestration
@@ -24,7 +24,7 @@ pub(crate) trait SnapDriver {
     fn destroy_snapshots(volume: &str, indexes: &[u64]) {
         for idx in indexes {
             let cmd = Self::destroy_cmd(volume, *idx);
-            info_omit!(exec_output(&cmd));
+            info_omit!(exec(&cmd));
         }
     }
 }
@@ -38,12 +38,12 @@ pub(crate) fn gen_snapshot<D: SnapDriver>(cfg: &BtmCfg, idx: u64) -> Result<()> 
     alt!(0 != (u64::MAX - idx) % cfg.itv, return Ok(()));
     clean_outdated::<D>(cfg).c(d!())?;
     let cmd = D::create_snapshot_cmd(&cfg.volume, idx);
-    exec_output(&cmd).c(d!()).map(|_| ())
+    exec(&cmd).c(d!()).map(|_| ())
 }
 
 pub(crate) fn sorted_snapshots<D: SnapDriver>(cfg: &BtmCfg) -> Result<Vec<u64>> {
     let cmd = D::list_snapshots_cmd(cfg).c(d!())?;
-    let output = exec_output(&cmd).c(d!())?;
+    let output = exec(&cmd).c(d!())?;
 
     let mut res = output
         .lines()
@@ -83,12 +83,12 @@ pub(crate) fn rollback<D: SnapDriver>(cfg: &BtmCfg, idx: Option<i128>, strict: b
         }
     };
 
-    exec_output(&cmd).c(d!()).map(|_| ())
+    exec(&cmd).c(d!()).map(|_| ())
 }
 
 pub(crate) fn check<D: SnapDriver>(volume: &str) -> Result<()> {
     let cmd = D::check_volume_cmd(volume);
-    exec_output(&cmd).c(d!()).map(|_| ())
+    exec(&cmd).c(d!()).map(|_| ())
 }
 
 #[inline(always)]
