@@ -81,7 +81,7 @@ impl BtmCfg {
     }
 
     /// Validate configuration parameters.
-    pub(crate) fn validate_params(&self) -> Result<()> {
+    pub fn validate_params(&self) -> Result<()> {
         if self.itv < 1 {
             return Err(eg!("itv must be >= 1"));
         }
