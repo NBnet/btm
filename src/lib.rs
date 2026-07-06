@@ -97,10 +97,15 @@ impl BtmCfg {
     }
 
     /// Validate volume name to prevent shell command injection.
-    /// Only allows alphanumeric characters, `/`, `-`, `_`, and `.`.
+    /// Only allows alphanumeric characters, `/`, `-`, `_`, and `.`;
+    /// a leading `-` is rejected so the name can never be parsed as a
+    /// command-line flag by the zfs/btrfs tools.
     fn validate_volume(volume: &str) -> Result<()> {
         if volume.is_empty() {
             return Err(eg!("volume name cannot be empty"));
+        }
+        if volume.starts_with('-') {
+            return Err(eg!("volume name must not start with '-'"));
         }
         if !volume
             .chars()
@@ -113,8 +118,14 @@ impl BtmCfg {
         Ok(())
     }
 
-    /// Validate configuration parameters.
+    /// Validate the whole configuration: the volume name (shell-safety)
+    /// and the numeric parameters.
+    ///
+    /// Called automatically by every operation that may reach a shell,
+    /// so a `BtmCfg` built via struct literal gets the same protection
+    /// as one built via [`BtmCfg::new`].
     pub fn validate_params(&self) -> Result<()> {
+        Self::validate_volume(&self.volume).c(d!())?;
         if self.itv < 1 {
             return Err(eg!("itv must be >= 1"));
         }
@@ -133,6 +144,10 @@ impl BtmCfg {
     /// are Linux-only, and cross-platform callers must be able to keep
     /// this call in their hot path unconditionally.
     pub fn snapshot(&self, idx: u64) -> Result<()> {
+        // the config must be proven shell-safe and non-degenerate
+        // before anything else runs (sync_volume already shells out)
+        self.validate_params().c(d!())?;
+
         if cfg!(not(target_os = "linux")) {
             static WARN_ONCE: std::sync::Once = std::sync::Once::new();
             WARN_ONCE.call_once(|| {
@@ -191,6 +206,7 @@ impl BtmCfg {
     /// (`zfs rollback -r` semantics).
     #[inline(always)]
     pub fn rollback(&self, idx: Option<i128>, strict: bool) -> Result<()> {
+        self.validate_params().c(d!())?;
         match self.mode {
             SnapMode::Zfs => driver::rollback::<Zfs>(self, idx, strict).c(d!()),
             SnapMode::Btrfs => driver::rollback::<Btrfs>(self, idx, strict).c(d!()),
@@ -201,6 +217,7 @@ impl BtmCfg {
     /// Get snapshot list in 'DESC' order.
     #[inline(always)]
     pub fn get_sorted_snapshots(&self) -> Result<Vec<u64>> {
+        self.validate_params().c(d!())?;
         match self.mode {
             SnapMode::Zfs => driver::sorted_snapshots::<Zfs>(self).c(d!()),
             SnapMode::Btrfs => driver::sorted_snapshots::<Btrfs>(self).c(d!()),
@@ -230,6 +247,7 @@ impl BtmCfg {
     /// Clean all existing snapshots except the newest
     /// `cap_clean_kept` ones.
     pub fn clean_snapshots(&self) -> Result<()> {
+        self.validate_params().c(d!())?;
         match self.mode {
             SnapMode::Zfs => driver::clean_all::<Zfs>(self, self.cap_clean_kept).c(d!()),
             SnapMode::Btrfs => driver::clean_all::<Btrfs>(self, self.cap_clean_kept).c(d!()),
@@ -375,6 +393,8 @@ mod tests {
         assert!(BtmCfg::validate_volume("/btrfs/data").is_ok());
 
         assert!(BtmCfg::validate_volume("").is_err());
+        assert!(BtmCfg::validate_volume("-o").is_err());
+        assert!(BtmCfg::validate_volume("-tank/data").is_err());
         assert!(BtmCfg::validate_volume("tank/data; rm -rf /").is_err());
         assert!(BtmCfg::validate_volume("tank/data$(reboot)").is_err());
         assert!(BtmCfg::validate_volume("tank/data\u{4e2d}").is_err());

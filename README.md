@@ -19,6 +19,7 @@ BTM is an incremental data backup mechanism that does not require downtime.
 - `SnapMode::guess()` is read-only — the target volume is no longer created as a side effect of probing
 - the crate compiles on non-Linux platforms (`snapshot()` is a no-op there); the daemon/UAU API remains Linux-only
 - `clean_snapshots()` goes through the snapshot driver (btrfs deletions are batched again)
+- the full config (volume shell-safety + numeric params) is validated at every operation entry point, so struct-literal configs are as safe as `BtmCfg::new` ones; zfs snapshot deletions are batched into a single `zfs destroy vol@a,b,c`
 - dependencies upgraded: `ruc` 11.0, `nix` 0.31
 
 ## Why would you need this?

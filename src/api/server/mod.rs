@@ -16,8 +16,8 @@ pub fn run_daemon(cfg: BtmCfg) -> Result<()> {
             && let Ok(r) = info!(serde_json::from_slice::<Req>(&msg))
         {
             let success = info!(cfg.snapshot(r.idx())).is_ok();
-            s.send(&Resp::new(r.idx(), success).to_bytes(), &peer)
-                .c(d!())?;
+            // a vanished client must not kill the daemon loop
+            info_omit!(s.send(&Resp::new(r.idx(), success).to_bytes(), &peer));
         }
     }
 }

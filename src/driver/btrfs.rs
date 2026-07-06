@@ -8,11 +8,13 @@ pub(crate) struct Btrfs;
 impl SnapDriver for Btrfs {
     fn list_snapshots_cmd(cfg: &BtmCfg) -> String {
         // `btrfs subvolume list` needs any path inside the filesystem;
-        // the parent directory of the volume always qualifies
+        // the parent directory of the volume always qualifies (fall
+        // back to the CWD for a bare relative name)
         let parent = Path::new(&cfg.volume)
             .parent()
             .and_then(|p| p.to_str())
-            .unwrap_or("/");
+            .filter(|p| !p.is_empty())
+            .unwrap_or(".");
         format!("btrfs subvolume list -so {}", parent)
     }
 

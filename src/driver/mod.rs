@@ -47,17 +47,23 @@ fn idx_aligned(idx: u64, itv: u64) -> bool {
 }
 
 pub(crate) fn gen_snapshot<D: SnapDriver>(cfg: &BtmCfg, idx: u64) -> Result<()> {
-    // cheap arithmetic gate first: skipped indexes must not pay
+    // degenerate configs must never reach a shell: itv = 0 would
+    // silently skip every index, cap = 0 would destroy every existing
+    // snapshot, and an unvalidated volume could smuggle shell syntax
+    cfg.validate_params().c(d!())?;
+
+    // cheap arithmetic gate next: skipped indexes must not pay
     // for a shell round-trip
     if !idx_aligned(idx, cfg.itv) {
         return Ok(());
     }
 
-    if sorted_snapshots::<D>(cfg).c(d!())?.contains(&idx) {
+    let snaps = sorted_snapshots::<D>(cfg).c(d!())?;
+    if snaps.contains(&idx) {
         return Err(eg!("Snapshot {} already exists!", idx));
     }
 
-    clean_outdated::<D>(cfg).c(d!())?;
+    clean_outdated::<D>(cfg, &snaps).c(d!())?;
     let cmd = D::create_snapshot_cmd(&cfg.volume, idx);
     exec(&cmd).c(d!()).map(|_| ())
 }
@@ -131,18 +137,20 @@ pub(crate) fn clean_all<D: SnapDriver>(cfg: &BtmCfg, kept: usize) -> Result<()> 
 }
 
 #[inline(always)]
-fn clean_outdated<D: SnapDriver>(cfg: &BtmCfg) -> Result<()> {
+fn clean_outdated<D: SnapDriver>(cfg: &BtmCfg, snaps_desc: &[u64]) -> Result<()> {
     match cfg.algo {
-        SnapAlgo::Fair => clean_outdated_fair::<D>(cfg).c(d!()),
-        SnapAlgo::Fade => clean_outdated_fade::<D>(cfg).c(d!()),
-    }
-}
-
-fn clean_outdated_fair<D: SnapDriver>(cfg: &BtmCfg) -> Result<()> {
-    let snaps = sorted_snapshots::<D>(cfg).c(d!())?;
-    let to_del = fair_to_delete(&snaps, cfg.get_cap() as usize);
-    if !to_del.is_empty() {
-        D::destroy_snapshots(&cfg.volume, to_del);
+        SnapAlgo::Fair => {
+            let to_del = fair_to_delete(snaps_desc, cfg.get_cap() as usize);
+            if !to_del.is_empty() {
+                D::destroy_snapshots(&cfg.volume, to_del);
+            }
+        }
+        SnapAlgo::Fade => {
+            let to_del = fade_to_delete(snaps_desc, cfg.itv, cfg.get_cap() as usize);
+            if !to_del.is_empty() {
+                D::destroy_snapshots(&cfg.volume, &to_del);
+            }
+        }
     }
     Ok(())
 }
@@ -154,16 +162,6 @@ pub(crate) fn fair_to_delete(snaps_desc: &[u64], cap: usize) -> &[u64] {
     } else {
         &[]
     }
-}
-
-fn clean_outdated_fade<D: SnapDriver>(cfg: &BtmCfg) -> Result<()> {
-    cfg.validate_params().c(d!())?;
-    let snaps = sorted_snapshots::<D>(cfg).c(d!())?;
-    let to_del = fade_to_delete(&snaps, cfg.itv, cfg.get_cap() as usize);
-    if !to_del.is_empty() {
-        D::destroy_snapshots(&cfg.volume, &to_del);
-    }
-    Ok(())
 }
 
 /// Fade retention: split the newest snapshots into `STEP_CNT` chunks of
@@ -181,7 +179,8 @@ fn clean_outdated_fade<D: SnapDriver>(cfg: &BtmCfg) -> Result<()> {
 /// so 100 snapshots can cover ~10^11 indexes.
 ///
 /// NOTE: callers must have validated `itv.pow(STEP_CNT)` against
-/// overflow (see `BtmCfg::validate_params`).
+/// overflow (see `BtmCfg::validate_params`). When `cap < STEP_CNT`,
+/// `chunk_size` is zero and fade degenerates to the plain cap trim.
 pub(crate) fn fade_to_delete(snaps_desc: &[u64], itv: u64, cap: usize) -> Vec<u64> {
     let chunk_size = cap / STEP_CNT;
     if 1 + chunk_size > snaps_desc.len() {
@@ -207,9 +206,7 @@ pub(crate) fn fade_to_delete(snaps_desc: &[u64], itv: u64, cap: usize) -> Vec<u6
     }
 
     // 2. clean up snapshots whose positions exceed `cap`
-    if cap < snaps_desc.len() {
-        to_del.extend_from_slice(&snaps_desc[cap..]);
-    }
+    to_del.extend_from_slice(fair_to_delete(snaps_desc, cap));
 
     to_del
 }
@@ -360,6 +357,11 @@ mod tests {
         assert_eq!("zfs destroy tank/data@7", Zfs::destroy_cmd("tank/data", 7));
         // the volume check must be read-only: no `create` fallback
         assert!(!Zfs::check_volume_cmd("tank/data").contains("create"));
+        // batch destroy folds every index into one command
+        assert_eq!(
+            "zfs destroy tank/data@3,2,1",
+            super::zfs::batch_destroy_cmd("tank/data", &[3, 2, 1])
+        );
 
         let cfg = cfg_with_volume("/btrfs/data", SnapMode::Btrfs);
         assert_eq!(
@@ -367,5 +369,45 @@ mod tests {
             Btrfs::list_snapshots_cmd(&cfg)
         );
         assert!(!Btrfs::check_volume_cmd("/btrfs/data").contains("create"));
+
+        // a bare relative volume name must probe the CWD, not "/"
+        let cfg = cfg_with_volume("data", SnapMode::Btrfs);
+        assert_eq!(
+            "btrfs subvolume list -so .",
+            Btrfs::list_snapshots_cmd(&cfg)
+        );
+    }
+
+    #[test]
+    fn degenerate_cfg_rejected_before_exec() {
+        // these must all fail during validation, BEFORE any shell
+        // command runs, so the test is safe on every platform
+
+        // itv = 0 would silently skip every snapshot forever
+        let mut cfg = cfg_with_volume("tank/data", SnapMode::Zfs);
+        cfg.itv = 0;
+        assert!(gen_snapshot::<Zfs>(&cfg, 42).is_err());
+
+        // cap = 0 would mass-delete all existing snapshots
+        let mut cfg = cfg_with_volume("tank/data", SnapMode::Zfs);
+        cfg.cap = 0;
+        assert!(gen_snapshot::<Zfs>(&cfg, 42).is_err());
+
+        // a struct-literal config with a hostile volume must be
+        // stopped even though BtmCfg::new was bypassed
+        let cfg = cfg_with_volume("tank/data; rm -rf /", SnapMode::Zfs);
+        assert!(gen_snapshot::<Zfs>(&cfg, 42).is_err());
+        let cfg = cfg_with_volume("-o exec=evil", SnapMode::Btrfs);
+        assert!(gen_snapshot::<Btrfs>(&cfg, 42).is_err());
+    }
+
+    #[test]
+    fn fade_degenerates_below_step_cnt() {
+        // cap < STEP_CNT => chunk_size = 0 => fade cannot thin chunks
+        // and degenerates to the plain cap trim
+        let snaps: Vec<u64> = (0..10u64).rev().collect();
+        let mut to_del = fade_to_delete(&snaps, 2, 4);
+        to_del.sort_unstable();
+        assert_eq!(vec![0u64, 1, 2, 3, 4, 5], to_del);
     }
 }
