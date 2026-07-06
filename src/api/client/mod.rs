@@ -13,7 +13,7 @@ pub(crate) fn request_snapshot(idx: u64) -> Result<()> {
 
     // try at most 20 times, aka 10 seconds
     for _ in 0..20 {
-        if let Ok(resp) = cli.recvonly_128() {
+        if let Ok(resp) = cli.recvonly_buf::<128>() {
             let r = serde_json::from_slice::<Resp>(&resp).c(d!())?;
             if r.success() && r.idx() == idx {
                 return Ok(());

@@ -1,4 +1,5 @@
 pub mod btrfs;
+#[cfg(target_os = "linux")]
 pub mod external;
 pub mod zfs;
 
@@ -9,15 +10,21 @@ use ruc::{cmd::exec, *};
 /// ZFS and Btrfs each implement this trait; the shared orchestration
 /// logic lives in the generic functions below.
 pub(crate) trait SnapDriver {
-    /// Shell command that lists snapshot identifiers (one per line)
-    fn list_snapshots_cmd(cfg: &BtmCfg) -> Result<String>;
+    /// Shell command that lists snapshots of the target volume,
+    /// one raw entry per line (parsed by `parse_snapshot_line`)
+    fn list_snapshots_cmd(cfg: &BtmCfg) -> String;
+    /// Extract the snapshot index from one line of `list_snapshots_cmd`
+    /// output; `None` for entries that do not belong to btm
+    /// (manual snapshots, other subvolumes, etc.)
+    fn parse_snapshot_line(cfg: &BtmCfg, line: &str) -> Option<u64>;
     /// Shell command to create a snapshot at the given index
     fn create_snapshot_cmd(volume: &str, idx: u64) -> String;
     /// Shell command to rollback to the given snapshot index
     fn rollback_cmd(volume: &str, idx: u64) -> String;
     /// Shell command to destroy a single snapshot
     fn destroy_cmd(volume: &str, idx: u64) -> String;
-    /// Shell command to check/create a volume
+    /// Read-only shell command that succeeds iff the volume exists
+    /// and is managed by this driver; MUST have no side effects
     fn check_volume_cmd(volume: &str) -> String;
 
     /// Destroy multiple snapshots. Default implementation destroys one at a time.
@@ -29,66 +36,98 @@ pub(crate) trait SnapDriver {
     }
 }
 
+/// Return `true` if the index is aligned to the snapshot interval.
+///
+/// The counter is anchored at `u64::MAX` instead of zero so that
+/// larger `itv` values keep firing on the same phase regardless of
+/// where the index sequence started.
 #[inline(always)]
+fn idx_aligned(idx: u64, itv: u64) -> bool {
+    (u64::MAX - idx).is_multiple_of(itv)
+}
+
 pub(crate) fn gen_snapshot<D: SnapDriver>(cfg: &BtmCfg, idx: u64) -> Result<()> {
+    // cheap arithmetic gate first: skipped indexes must not pay
+    // for a shell round-trip
+    if !idx_aligned(idx, cfg.itv) {
+        return Ok(());
+    }
+
     if sorted_snapshots::<D>(cfg).c(d!())?.contains(&idx) {
         return Err(eg!("Snapshot {} already exists!", idx));
     }
 
-    alt!(0 != (u64::MAX - idx) % cfg.itv, return Ok(()));
     clean_outdated::<D>(cfg).c(d!())?;
     let cmd = D::create_snapshot_cmd(&cfg.volume, idx);
     exec(&cmd).c(d!()).map(|_| ())
 }
 
 pub(crate) fn sorted_snapshots<D: SnapDriver>(cfg: &BtmCfg) -> Result<Vec<u64>> {
-    let cmd = D::list_snapshots_cmd(cfg).c(d!())?;
+    let cmd = D::list_snapshots_cmd(cfg);
     let output = exec(&cmd).c(d!())?;
 
     let mut res = output
         .lines()
-        .map(|l| l.parse::<u64>().c(d!()))
-        .collect::<Result<Vec<u64>>>()?;
+        .filter_map(|l| D::parse_snapshot_line(cfg, l))
+        .collect::<Vec<u64>>();
     res.sort_unstable_by(|a, b| b.cmp(a));
+    res.dedup();
 
     Ok(res)
+}
+
+/// Select the snapshot to roll back to.
+///
+/// - `None` => the latest snapshot
+/// - `Some(i)`, exact match => that snapshot
+/// - `Some(i)`, no exact match, strict => error
+/// - `Some(i)`, no exact match, lax => the newest snapshot older than `i`
+pub(crate) fn rollback_target(snaps_asc: &[u64], idx: Option<u64>, strict: bool) -> Result<u64> {
+    let last = match snaps_asc.last() {
+        Some(l) => *l,
+        None => return Err(eg!("no snapshots")),
+    };
+
+    let idx = match idx {
+        Some(i) => i,
+        None => return Ok(last),
+    };
+
+    match snaps_asc.binary_search(&idx) {
+        Ok(_) => Ok(idx),
+        Err(_) if strict => Err(eg!("specified height does not exist")),
+        Err(0) => Err(eg!("all snapshots are newer than the requested height")),
+        Err(i) => Ok(snaps_asc[i - 1]),
+    }
 }
 
 pub(crate) fn rollback<D: SnapDriver>(cfg: &BtmCfg, idx: Option<i128>, strict: bool) -> Result<()> {
     // convert to ASC order for `binary_search`
     let mut snaps = sorted_snapshots::<D>(cfg).c(d!())?;
     snaps.reverse();
-    alt!(snaps.is_empty(), return Err(eg!("no snapshots")));
 
     let idx = match idx {
-        Some(i) => u64::try_from(i).c(d!("snapshot index must be non-negative"))?,
-        None => snaps[snaps.len() - 1],
+        Some(i) => Some(u64::try_from(i).c(d!("snapshot index must be non-negative"))?),
+        None => None,
     };
 
-    let cmd = match snaps.binary_search(&idx) {
-        Ok(_) => D::rollback_cmd(&cfg.volume, idx),
-        Err(i) => {
-            if strict {
-                return Err(eg!("specified height does not exist"));
-            }
-            let effective_idx = if 1 + i > snaps.len() {
-                snaps[snaps.len() - 1]
-            } else {
-                *(0..i)
-                    .rev()
-                    .find_map(|i| snaps.get(i))
-                    .c(d!("no snapshots found"))?
-            };
-            D::rollback_cmd(&cfg.volume, effective_idx)
-        }
-    };
-
+    let target = rollback_target(&snaps, idx, strict).c(d!())?;
+    let cmd = D::rollback_cmd(&cfg.volume, target);
     exec(&cmd).c(d!()).map(|_| ())
 }
 
 pub(crate) fn check<D: SnapDriver>(volume: &str) -> Result<()> {
     let cmd = D::check_volume_cmd(volume);
     exec(&cmd).c(d!()).map(|_| ())
+}
+
+/// Destroy all snapshots except the newest `kept` ones.
+pub(crate) fn clean_all<D: SnapDriver>(cfg: &BtmCfg, kept: usize) -> Result<()> {
+    let snaps = sorted_snapshots::<D>(cfg).c(d!())?;
+    if kept < snaps.len() {
+        D::destroy_snapshots(&cfg.volume, &snaps[kept..]);
+    }
+    Ok(())
 }
 
 #[inline(always)]
@@ -101,49 +140,59 @@ fn clean_outdated<D: SnapDriver>(cfg: &BtmCfg) -> Result<()> {
 
 fn clean_outdated_fair<D: SnapDriver>(cfg: &BtmCfg) -> Result<()> {
     let snaps = sorted_snapshots::<D>(cfg).c(d!())?;
-    let cap = cfg.get_cap() as usize;
-
-    if 1 + cap > snaps.len() {
-        return Ok(());
+    let to_del = fair_to_delete(&snaps, cfg.get_cap() as usize);
+    if !to_del.is_empty() {
+        D::destroy_snapshots(&cfg.volume, to_del);
     }
-
-    D::destroy_snapshots(&cfg.volume, &snaps[cap..]);
-
     Ok(())
 }
 
-// Logical steps:
-//
-// 1. clean up outdated snapshot in each chunks
-// > # Example
-// > - itv = 10
-// > - cap = 100
-// > - step_cnt = 5
-// > - chunk_size = 100 / 5 = 20
-// >
-// > blocks cover = chunk_size * (itv^1 + itv^2 ... itv^step_cnt)
-// >              = 55_5500
-// >
-// > this means we can use 100 snapshots to cover 55_5500 blocks
-//
-// 2. clean up snapshot whose indexes exceed `cap`
+/// Keep the newest `cap` snapshots, return the rest for deletion.
+pub(crate) fn fair_to_delete(snaps_desc: &[u64], cap: usize) -> &[u64] {
+    if cap < snaps_desc.len() {
+        &snaps_desc[cap..]
+    } else {
+        &[]
+    }
+}
+
 fn clean_outdated_fade<D: SnapDriver>(cfg: &BtmCfg) -> Result<()> {
-    let snaps = sorted_snapshots::<D>(cfg).c(d!())?;
-    let cap = cfg.get_cap() as usize;
-
     cfg.validate_params().c(d!())?;
-    let chunk_size = cap / STEP_CNT;
-    let chunk_denominators = (0..STEP_CNT as u32).map(|n| cfg.itv.pow(1 + n));
+    let snaps = sorted_snapshots::<D>(cfg).c(d!())?;
+    let to_del = fade_to_delete(&snaps, cfg.itv, cfg.get_cap() as usize);
+    if !to_del.is_empty() {
+        D::destroy_snapshots(&cfg.volume, &to_del);
+    }
+    Ok(())
+}
 
-    if 1 + chunk_size > snaps.len() {
-        return Ok(());
+/// Fade retention: split the newest snapshots into `STEP_CNT` chunks of
+/// `cap / STEP_CNT`; chunk `n` only keeps snapshots aligned to
+/// `itv^(1 + n)`, so density decreases exponentially with age.
+/// Everything beyond `cap` is deleted unconditionally.
+///
+/// # Example
+///
+/// - itv = 10
+/// - cap = 100
+/// - chunk_size = 100 / STEP_CNT = 10
+///
+/// index coverage = chunk_size * (itv^1 + itv^2 ... itv^STEP_CNT),
+/// so 100 snapshots can cover ~10^11 indexes.
+///
+/// NOTE: callers must have validated `itv.pow(STEP_CNT)` against
+/// overflow (see `BtmCfg::validate_params`).
+pub(crate) fn fade_to_delete(snaps_desc: &[u64], itv: u64, cap: usize) -> Vec<u64> {
+    let chunk_size = cap / STEP_CNT;
+    if 1 + chunk_size > snaps_desc.len() {
+        return vec![];
     }
 
     let mut to_del = vec![];
 
-    // 1.
-    let mut pair = (&snaps[..0], &snaps[..]);
-    for denominator in chunk_denominators {
+    // 1. clean up unaligned snapshots in each chunk
+    let mut pair: (&[u64], &[u64]) = (&snaps_desc[..0], snaps_desc);
+    for denominator in (0..STEP_CNT as u32).map(|n| itv.pow(1 + n)) {
         pair = if chunk_size < pair.1.len() {
             pair.1.split_at(chunk_size)
         } else {
@@ -151,20 +200,172 @@ fn clean_outdated_fade<D: SnapDriver>(cfg: &BtmCfg) -> Result<()> {
         };
 
         pair.0.iter().for_each(|n| {
-            if 0 != (u64::MAX - n) % denominator {
+            if !idx_aligned(*n, denominator) {
                 to_del.push(*n);
             }
         });
     }
 
-    // 2.
-    if cap < snaps.len() {
-        to_del.extend_from_slice(&snaps[cap..]);
+    // 2. clean up snapshots whose positions exceed `cap`
+    if cap < snaps_desc.len() {
+        to_del.extend_from_slice(&snaps_desc[cap..]);
     }
 
-    if !to_del.is_empty() {
-        D::destroy_snapshots(&cfg.volume, &to_del);
+    to_del
+}
+
+#[cfg(test)]
+mod tests {
+    use super::btrfs::Btrfs;
+    use super::zfs::Zfs;
+    use super::*;
+    use crate::SnapMode;
+
+    fn cfg_with_volume(volume: &str, mode: SnapMode) -> BtmCfg {
+        BtmCfg {
+            itv: 1,
+            cap: 100,
+            cap_clean_kept: 0,
+            mode,
+            algo: SnapAlgo::Fair,
+            volume: volume.to_owned(),
+        }
     }
 
-    Ok(())
+    #[test]
+    fn idx_alignment() {
+        assert!(idx_aligned(u64::MAX, 10));
+        assert!(idx_aligned(u64::MAX - 10, 10));
+        assert!(!idx_aligned(u64::MAX - 5, 10));
+        // itv = 1 accepts every index
+        (0..100u64).for_each(|i| assert!(idx_aligned(i, 1)));
+    }
+
+    #[test]
+    fn rollback_target_selection() {
+        let snaps = [10u64, 20, 30];
+
+        // empty set
+        assert!(rollback_target(&[], None, false).is_err());
+
+        // None => latest
+        assert_eq!(30, rollback_target(&snaps, None, true).unwrap());
+
+        // exact match
+        assert_eq!(20, rollback_target(&snaps, Some(20), true).unwrap());
+
+        // lax fallback: newest snapshot older than the request
+        assert_eq!(20, rollback_target(&snaps, Some(25), false).unwrap());
+
+        // lax fallback: request newer than everything => latest
+        assert_eq!(30, rollback_target(&snaps, Some(99), false).unwrap());
+
+        // strict miss
+        assert!(rollback_target(&snaps, Some(25), true).is_err());
+
+        // request older than everything: nothing to fall back to
+        assert!(rollback_target(&snaps, Some(5), false).is_err());
+    }
+
+    #[test]
+    fn fair_selection() {
+        let snaps = [50u64, 40, 30, 20, 10];
+        assert!(fair_to_delete(&snaps, 5).is_empty());
+        assert!(fair_to_delete(&snaps, 9).is_empty());
+        assert_eq!([20u64, 10].as_slice(), fair_to_delete(&snaps, 3));
+        assert_eq!(snaps.as_slice(), fair_to_delete(&snaps, 0));
+    }
+
+    #[test]
+    fn fade_selection() {
+        // itv = 2, cap = 20 => chunk_size = 2, denominators 2, 4, 8, ...
+        // u64::MAX is odd, so "aligned to 2" means odd indexes,
+        // "aligned to 4" means idx % 4 == 3, and so on.
+        let snaps: Vec<u64> = (0..=21u64).rev().collect();
+        let mut to_del = fade_to_delete(&snaps, 2, 20);
+        to_del.sort_unstable();
+        let expected: Vec<u64> = (0..=20u64).filter(|n| ![15, 19].contains(n)).collect();
+        assert_eq!(expected, to_del);
+
+        // below one chunk of snapshots: nothing to clean
+        assert!(fade_to_delete(&[5, 4], 2, 20).is_empty());
+
+        // itv = 1 keeps every in-cap snapshot and trims the overflow
+        let mut to_del = fade_to_delete(&snaps, 1, 20);
+        to_del.sort_unstable();
+        assert_eq!(vec![0u64, 1], to_del);
+    }
+
+    #[test]
+    fn zfs_parse_snapshot_line() {
+        let cfg = cfg_with_volume("tank/igp24", SnapMode::Zfs);
+        let parse = |l| Zfs::parse_snapshot_line(&cfg, l);
+
+        assert_eq!(Some(449), parse("tank/igp24@449"));
+        assert_eq!(Some(0), parse("tank/igp24@0"));
+
+        // manual snapshots must not become phantom numeric entries
+        assert_eq!(None, parse("tank/igp24@20260706-predeploy"));
+        assert_eq!(None, parse("tank/igp24@backup"));
+
+        // child datasets are not ours
+        assert_eq!(None, parse("tank/igp24/child@449"));
+
+        // no sign prefixes, no overflow, no empty index
+        assert_eq!(None, parse("tank/igp24@+449"));
+        assert_eq!(None, parse("tank/igp24@99999999999999999999999999"));
+        assert_eq!(None, parse("tank/igp24@"));
+        assert_eq!(None, parse(""));
+    }
+
+    #[test]
+    fn btrfs_parse_snapshot_line() {
+        let cfg = cfg_with_volume("/btrfs/data", SnapMode::Btrfs);
+        let parse = |l| Btrfs::parse_snapshot_line(&cfg, l);
+
+        assert_eq!(Some(123), parse("ID 256 gen 30 top level 5 path data@123"));
+        assert_eq!(
+            Some(77),
+            parse("ID 256 gen 30 top level 5 path nested/data@77")
+        );
+
+        // snapshots of sibling subvolumes must not match
+        assert_eq!(None, parse("ID 256 gen 30 top level 5 path other@123"));
+
+        // manual snapshots must not become phantom numeric entries
+        assert_eq!(
+            None,
+            parse("ID 256 gen 30 top level 5 path data@2026-predeploy")
+        );
+
+        assert_eq!(None, parse("garbage"));
+        assert_eq!(None, parse(""));
+    }
+
+    #[test]
+    fn command_strings() {
+        let cfg = cfg_with_volume("tank/data", SnapMode::Zfs);
+        assert_eq!(
+            "zfs list -H -t snapshot -d 1 -o name tank/data",
+            Zfs::list_snapshots_cmd(&cfg)
+        );
+        assert_eq!(
+            "zfs snapshot tank/data@7",
+            Zfs::create_snapshot_cmd("tank/data", 7)
+        );
+        assert_eq!(
+            "zfs rollback -r tank/data@7",
+            Zfs::rollback_cmd("tank/data", 7)
+        );
+        assert_eq!("zfs destroy tank/data@7", Zfs::destroy_cmd("tank/data", 7));
+        // the volume check must be read-only: no `create` fallback
+        assert!(!Zfs::check_volume_cmd("tank/data").contains("create"));
+
+        let cfg = cfg_with_volume("/btrfs/data", SnapMode::Btrfs);
+        assert_eq!(
+            "btrfs subvolume list -so /btrfs",
+            Btrfs::list_snapshots_cmd(&cfg)
+        );
+        assert!(!Btrfs::check_volume_cmd("/btrfs/data").contains("create"));
+    }
 }

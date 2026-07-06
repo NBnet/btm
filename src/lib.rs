@@ -10,18 +10,46 @@
 //! - based on OS-level infrastructure, stable and reliable
 //! - very small resource usage, almost no performance damage
 //!
+//! ## Platform support
+//!
+//! Snapshot orchestration requires Linux (zfs/btrfs tooling). On other
+//! platforms the crate still compiles so that cross-platform callers can
+//! embed it unconditionally: [`BtmCfg::snapshot`] degrades to a no-op,
+//! while destructive/query operations (rollback, list, clean) fail at
+//! runtime instead of pretending to succeed.
+//!
+//! ## Index semantics for non-blockchain callers
+//!
+//! `idx` is just a monotonically increasing `u64` — block heights for
+//! blockchains, but any dense counter works (e.g. minutes since an
+//! epoch). Note that the `itv` alignment gate applies at snapshot
+//! *creation* time: with `itv > 1`, only indexes aligned to the interval
+//! (anchored at `u64::MAX`) produce a snapshot, so sparse counters like
+//! raw unix timestamps should use `itv = 1` and control cadence at the
+//! call site.
+//!
+//! ## Rollback semantics
+//!
+//! Rollback is destructive: the zfs driver uses `zfs rollback -r`, which
+//! destroys every snapshot newer than the rollback target. To inspect a
+//! snapshot without destroying history, clone it manually instead
+//! (`zfs clone <volume>@<idx> <target>`).
+//!
 
-#![cfg(target_os = "linux")]
 #![deny(warnings)]
 #![deny(missing_docs)]
 
+#[cfg(target_os = "linux")]
 mod api;
 mod driver;
 
+#[cfg(target_os = "linux")]
 pub use api::server::run_daemon;
 
-use driver::{btrfs, external, zfs};
-use ruc::{cmd, *};
+#[cfg(target_os = "linux")]
+use driver::external;
+use driver::{btrfs::Btrfs, zfs::Zfs};
+use ruc::*;
 use std::{fmt, result::Result as StdResult, str::FromStr};
 
 /// Maximum number of snapshots that can be kept
@@ -99,25 +127,73 @@ impl BtmCfg {
         Ok(())
     }
 
-    /// Generate a snapshot for the latest state of blockchain
-    #[inline(always)]
+    /// Generate a snapshot for the latest state of the data volume.
+    ///
+    /// On non-Linux platforms this is a no-op: production deployments
+    /// are Linux-only, and cross-platform callers must be able to keep
+    /// this call in their hot path unconditionally.
     pub fn snapshot(&self, idx: u64) -> Result<()> {
-        // sync data to disk before snapshotting
-        nix::unistd::sync();
+        if cfg!(not(target_os = "linux")) {
+            static WARN_ONCE: std::sync::Once = std::sync::Once::new();
+            WARN_ONCE.call_once(|| {
+                eprintln!(
+                    "btm: snapshots are only supported on Linux, `snapshot()` is a no-op on this platform"
+                );
+            });
+            return Ok(());
+        }
+
+        // flush OS caches before snapshotting, so that everything
+        // already written by the caller reaches the on-disk state
+        // captured by the snapshot
+        self.sync_volume();
 
         match self.mode {
-            SnapMode::Zfs => zfs::gen_snapshot(self, idx).c(d!()),
-            SnapMode::Btrfs => btrfs::gen_snapshot(self, idx).c(d!()),
+            SnapMode::Zfs => driver::gen_snapshot::<Zfs>(self, idx).c(d!()),
+            SnapMode::Btrfs => driver::gen_snapshot::<Btrfs>(self, idx).c(d!()),
+            #[cfg(target_os = "linux")]
             SnapMode::External => external::gen_snapshot(self, idx).c(d!()),
+            #[cfg(not(target_os = "linux"))]
+            SnapMode::External => Err(eg!("`External` mode requires Linux")),
         }
     }
 
-    /// Rollback the state of blockchain to a specified height
+    /// Flush pending writes of the target volume to disk.
+    ///
+    /// Prefer `syncfs(2)` scoped to the volume's filesystem — a global
+    /// `sync(2)` on a busy host stalls on every other filesystem's dirty
+    /// pages. Fall back to the global sync when the volume's mountpoint
+    /// cannot be resolved.
+    fn sync_volume(&self) {
+        #[cfg(target_os = "linux")]
+        {
+            let synced = match self.mode {
+                SnapMode::Zfs => {
+                    cmd::exec(&format!("zfs get -H -o value mountpoint {}", &self.volume))
+                        .ok()
+                        .map(|mp| mp.trim().to_owned())
+                        .filter(|mp| mp.starts_with('/'))
+                        .is_some_and(|mp| syncfs_path(&mp).is_ok())
+                }
+                SnapMode::Btrfs => syncfs_path(&self.volume).is_ok(),
+                // the target volume is only known to the external daemon
+                SnapMode::External => false,
+            };
+            if !synced {
+                nix::unistd::sync();
+            }
+        }
+    }
+
+    /// Rollback the state of the data volume to a specified height.
+    ///
+    /// NOTE: destructive — snapshots newer than the target are destroyed
+    /// (`zfs rollback -r` semantics).
     #[inline(always)]
     pub fn rollback(&self, idx: Option<i128>, strict: bool) -> Result<()> {
         match self.mode {
-            SnapMode::Zfs => zfs::rollback(self, idx, strict).c(d!()),
-            SnapMode::Btrfs => btrfs::rollback(self, idx, strict).c(d!()),
+            SnapMode::Zfs => driver::rollback::<Zfs>(self, idx, strict).c(d!()),
+            SnapMode::Btrfs => driver::rollback::<Btrfs>(self, idx, strict).c(d!()),
             SnapMode::External => Err(eg!("please use the `btm` tool in `External` mode")),
         }
     }
@@ -126,15 +202,19 @@ impl BtmCfg {
     #[inline(always)]
     pub fn get_sorted_snapshots(&self) -> Result<Vec<u64>> {
         match self.mode {
-            SnapMode::Zfs => zfs::sorted_snapshots(self).c(d!()),
-            SnapMode::Btrfs => btrfs::sorted_snapshots(self).c(d!()),
+            SnapMode::Zfs => driver::sorted_snapshots::<Zfs>(self).c(d!()),
+            SnapMode::Btrfs => driver::sorted_snapshots::<Btrfs>(self).c(d!()),
             SnapMode::External => Err(eg!("please use `btm` tool in `External` mode")),
         }
     }
 
     #[inline(always)]
     fn get_cap(&self) -> u64 {
-        alt!(self.cap > CAP_MAX, CAP_MAX, self.cap)
+        if self.cap > CAP_MAX {
+            CAP_MAX
+        } else {
+            self.cap
+        }
     }
 
     /// List all existing snapshots.
@@ -147,26 +227,24 @@ impl BtmCfg {
         })
     }
 
-    /// Clean all existing snapshots.
+    /// Clean all existing snapshots except the newest
+    /// `cap_clean_kept` ones.
     pub fn clean_snapshots(&self) -> Result<()> {
-        if matches!(self.mode, SnapMode::External) {
-            return Err(eg!(
+        match self.mode {
+            SnapMode::Zfs => driver::clean_all::<Zfs>(self, self.cap_clean_kept).c(d!()),
+            SnapMode::Btrfs => driver::clean_all::<Btrfs>(self, self.cap_clean_kept).c(d!()),
+            SnapMode::External => Err(eg!(
                 "Unsupported driver: External mode does not support clean_snapshots"
-            ));
+            )),
         }
-        let list = self.get_sorted_snapshots().c(d!())?;
-        for height in list.into_iter().skip(self.cap_clean_kept).rev() {
-            let cmd = match self.mode {
-                SnapMode::Btrfs => {
-                    format!("btrfs subvolume delete {}@{}", &self.volume, height)
-                }
-                SnapMode::Zfs => format!("zfs destroy {}@{}", &self.volume, height),
-                SnapMode::External => unreachable!(),
-            };
-            info_omit!(cmd::exec(&cmd));
-        }
-        Ok(())
     }
+}
+
+/// Flush the filesystem containing `path` via `syncfs(2)`.
+#[cfg(target_os = "linux")]
+fn syncfs_path(path: &str) -> Result<()> {
+    let f = std::fs::File::open(path).c(d!())?;
+    nix::unistd::syncfs(&f).c(d!())
 }
 
 /// # Inner Operations
@@ -181,11 +259,9 @@ impl BtmCfg {
 ///
 /// ```shell
 /// # zfs filesystem
-/// zfs destroy zfs/data@123456 2>/dev/null
 /// zfs snapshot zfs/data@123456
 ///
 /// # btrfs filesystem
-/// rm -rf /btrfs/data@123456 2>/dev/null
 /// btrfs subvolume snapshot /btrfs/data /btrfs/data@123456
 /// ```
 ///
@@ -215,15 +291,23 @@ pub enum SnapMode {
 }
 
 impl SnapMode {
-    /// Try to determine which mode can be used on the target volume
+    /// Try to determine which mode can be used on the target volume.
+    ///
+    /// The probe is read-only: the volume must already exist, it will
+    /// never be created as a side effect of guessing.
     ///
     /// NOTE:
     /// not suitable for the `External` mode.
     pub fn guess(volume: &str) -> Result<Self> {
-        zfs::check(volume)
+        BtmCfg::validate_volume(volume).c(d!())?;
+        driver::check::<Zfs>(volume)
             .c(d!())
             .map(|_| SnapMode::Zfs)
-            .or_else(|e| btrfs::check(volume).c(d!(e)).map(|_| SnapMode::Btrfs))
+            .or_else(|e| {
+                driver::check::<Btrfs>(volume)
+                    .c(d!(e))
+                    .map(|_| SnapMode::Btrfs)
+            })
     }
 }
 
@@ -251,18 +335,13 @@ impl FromStr for SnapMode {
 }
 
 /// Snapshot management algorithm
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub enum SnapAlgo {
     /// snapshots are saved at fixed intervals
+    #[default]
     Fair,
     /// snapshots are saved in decreasing density
     Fade,
-}
-
-impl Default for SnapAlgo {
-    fn default() -> Self {
-        Self::Fair
-    }
 }
 
 impl fmt::Display for SnapAlgo {
@@ -283,5 +362,58 @@ impl FromStr for SnapAlgo {
             "fade" => Ok(Self::Fade),
             _ => Err(format!("unknown snap algo: '{}'", s)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn volume_validation() {
+        assert!(BtmCfg::validate_volume("tank/igp24-v1_data.0").is_ok());
+        assert!(BtmCfg::validate_volume("/btrfs/data").is_ok());
+
+        assert!(BtmCfg::validate_volume("").is_err());
+        assert!(BtmCfg::validate_volume("tank/data; rm -rf /").is_err());
+        assert!(BtmCfg::validate_volume("tank/data$(reboot)").is_err());
+        assert!(BtmCfg::validate_volume("tank/data\u{4e2d}").is_err());
+    }
+
+    #[test]
+    fn params_validation() {
+        let mut cfg = BtmCfg {
+            itv: 1,
+            cap: 100,
+            cap_clean_kept: 0,
+            mode: SnapMode::Zfs,
+            algo: SnapAlgo::Fade,
+            volume: "tank/data".to_owned(),
+        };
+        assert!(cfg.validate_params().is_ok());
+
+        cfg.itv = 0;
+        assert!(cfg.validate_params().is_err());
+
+        // itv^STEP_CNT must not overflow u64
+        cfg.itv = 90;
+        assert!(cfg.validate_params().is_err());
+        cfg.itv = 80;
+        assert!(cfg.validate_params().is_ok());
+
+        cfg.cap = 0;
+        assert!(cfg.validate_params().is_err());
+    }
+
+    #[test]
+    fn enums_from_str() {
+        assert!(matches!("zfs".parse(), Ok(SnapMode::Zfs)));
+        assert!(matches!("BTRFS".parse(), Ok(SnapMode::Btrfs)));
+        assert!(matches!("External".parse(), Ok(SnapMode::External)));
+        assert!("xfs".parse::<SnapMode>().is_err());
+
+        assert!(matches!("fair".parse(), Ok(SnapAlgo::Fair)));
+        assert!(matches!("Fade".parse(), Ok(SnapAlgo::Fade)));
+        assert!("fibonacci".parse::<SnapAlgo>().is_err());
     }
 }

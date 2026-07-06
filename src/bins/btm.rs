@@ -151,7 +151,14 @@ mod cmd {
                 .c(d!())
                 .or_else(|_| env::var(ENV_VAR_BTM_VOLUME).c(d!()))
                 .and_then(|v| BtmCfg::new(&v, None).c(d!()))?
-                .rollback(alt!(0 > snapshot_id, None, Some(snapshot_id)), strict)
+                .rollback(
+                    if 0 > snapshot_id {
+                        None
+                    } else {
+                        Some(snapshot_id)
+                    },
+                    strict,
+                )
                 .c(d!()),
             Cmds::Clean { volume, kept } => volume
                 .c(d!())
@@ -204,6 +211,8 @@ mod cmd {
 #[cfg(not(target_os = "linux"))]
 mod cmd {
     pub(super) fn run() {
-        println!("Warning: 'btm' is designed for Linux. On other platforms, it only supports compilation for verification.");
+        println!(
+            "Warning: 'btm' is designed for Linux. On other platforms, it only supports compilation for verification."
+        );
     }
 }
