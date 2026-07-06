@@ -1,6 +1,6 @@
 use super::SnapDriver;
 use crate::BtmCfg;
-use ruc::{cmd::exec, *};
+use ruc::*;
 use std::path::Path;
 
 pub(crate) struct Btrfs;
@@ -41,8 +41,16 @@ impl SnapDriver for Btrfs {
     }
 
     fn rollback_cmd(volume: &str, idx: u64) -> String {
+        // never destroy the live subvolume before its replacement is
+        // secured: snapshot the backup to a temp name first, only then
+        // swap it in (a vanished source snapshot aborts the chain with
+        // the live volume intact); a stale temp from a previous failed
+        // attempt is cleaned up front
         format!(
-            "btrfs subvolume delete {0} 2>/dev/null; btrfs subvolume snapshot {0}@{1} {0}",
+            "[ ! -d {0}.btm-rollback-tmp ] || btrfs subvolume delete {0}.btm-rollback-tmp \
+             && btrfs subvolume snapshot {0}@{1} {0}.btm-rollback-tmp \
+             && btrfs subvolume delete {0} \
+             && mv {0}.btm-rollback-tmp {0}",
             volume, idx
         )
     }
@@ -55,17 +63,18 @@ impl SnapDriver for Btrfs {
         format!("btrfs subvolume show {}", volume)
     }
 
-    /// Btrfs batches all snapshot deletions into a single command.
-    fn destroy_snapshots(volume: &str, indexes: &[u64]) {
-        if indexes.is_empty() {
-            return;
-        }
-        let list: String = indexes
-            .iter()
-            .map(|i| format!("{}@{}", volume, i))
-            .collect::<Vec<_>>()
-            .join(" ");
-        let cmd = format!("btrfs subvolume delete {}", list);
-        info_omit!(exec(&cmd));
+    /// Btrfs batches snapshot deletions (chunked, with per-item fallback).
+    fn destroy_snapshots(volume: &str, indexes: &[u64]) -> Result<()> {
+        super::destroy_batched::<Self>(volume, indexes, batch_destroy_cmd)
     }
+}
+
+/// One `btrfs subvolume delete` accepts multiple subvolume paths.
+pub(crate) fn batch_destroy_cmd(volume: &str, indexes: &[u64]) -> String {
+    let list = indexes
+        .iter()
+        .map(|i| format!("{}@{}", volume, i))
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!("btrfs subvolume delete {}", list)
 }

@@ -27,12 +27,58 @@ pub(crate) trait SnapDriver {
     /// and is managed by this driver; MUST have no side effects
     fn check_volume_cmd(volume: &str) -> String;
 
-    /// Destroy multiple snapshots. Default implementation destroys one at a time.
-    fn destroy_snapshots(volume: &str, indexes: &[u64]) {
+    /// Destroy multiple snapshots, reporting how many deletions failed.
+    /// Default implementation destroys one at a time.
+    fn destroy_snapshots(volume: &str, indexes: &[u64]) -> Result<()> {
+        let mut failed = 0usize;
         for idx in indexes {
-            let cmd = Self::destroy_cmd(volume, *idx);
-            info_omit!(exec(&cmd));
+            if info!(exec(&Self::destroy_cmd(volume, *idx))).is_err() {
+                failed += 1;
+            }
         }
+        if failed == 0 {
+            Ok(())
+        } else {
+            Err(eg!(
+                "{} of {} snapshot deletions failed",
+                failed,
+                indexes.len()
+            ))
+        }
+    }
+}
+
+/// Upper bound of snapshots deleted per shell command; keeps command
+/// lines far below ARG_MAX even with long volume paths.
+const DESTROY_BATCH_LIMIT: usize = 64;
+
+/// Chunked batch deletion: try one command per chunk, fall back to
+/// per-item deletion for a failed chunk so one stubborn snapshot
+/// cannot block the rest.
+pub(crate) fn destroy_batched<D: SnapDriver>(
+    volume: &str,
+    indexes: &[u64],
+    batch_cmd: fn(&str, &[u64]) -> String,
+) -> Result<()> {
+    let mut failed = 0usize;
+    for chunk in indexes.chunks(DESTROY_BATCH_LIMIT) {
+        if info!(exec(&batch_cmd(volume, chunk))).is_ok() {
+            continue;
+        }
+        for idx in chunk {
+            if info!(exec(&D::destroy_cmd(volume, *idx))).is_err() {
+                failed += 1;
+            }
+        }
+    }
+    if failed == 0 {
+        Ok(())
+    } else {
+        Err(eg!(
+            "{} of {} snapshot deletions failed",
+            failed,
+            indexes.len()
+        ))
     }
 }
 
@@ -131,24 +177,26 @@ pub(crate) fn check<D: SnapDriver>(volume: &str) -> Result<()> {
 pub(crate) fn clean_all<D: SnapDriver>(cfg: &BtmCfg, kept: usize) -> Result<()> {
     let snaps = sorted_snapshots::<D>(cfg).c(d!())?;
     if kept < snaps.len() {
-        D::destroy_snapshots(&cfg.volume, &snaps[kept..]);
+        D::destroy_snapshots(&cfg.volume, &snaps[kept..]).c(d!())?;
     }
     Ok(())
 }
 
 #[inline(always)]
 fn clean_outdated<D: SnapDriver>(cfg: &BtmCfg, snaps_desc: &[u64]) -> Result<()> {
+    // failed deletions are logged but never block the new snapshot:
+    // keeping today's backup matters more than trimming yesterday's
     match cfg.algo {
         SnapAlgo::Fair => {
             let to_del = fair_to_delete(snaps_desc, cfg.get_cap() as usize);
             if !to_del.is_empty() {
-                D::destroy_snapshots(&cfg.volume, to_del);
+                info_omit!(D::destroy_snapshots(&cfg.volume, to_del));
             }
         }
         SnapAlgo::Fade => {
             let to_del = fade_to_delete(snaps_desc, cfg.itv, cfg.get_cap() as usize);
             if !to_del.is_empty() {
-                D::destroy_snapshots(&cfg.volume, &to_del);
+                info_omit!(D::destroy_snapshots(&cfg.volume, &to_del));
             }
         }
     }
@@ -362,6 +410,10 @@ mod tests {
             "zfs destroy tank/data@3,2,1",
             super::zfs::batch_destroy_cmd("tank/data", &[3, 2, 1])
         );
+        assert_eq!(
+            "btrfs subvolume delete /d/v@3 /d/v@2",
+            super::btrfs::batch_destroy_cmd("/d/v", &[3, 2])
+        );
 
         let cfg = cfg_with_volume("/btrfs/data", SnapMode::Btrfs);
         assert_eq!(
@@ -399,6 +451,19 @@ mod tests {
         assert!(gen_snapshot::<Zfs>(&cfg, 42).is_err());
         let cfg = cfg_with_volume("-o exec=evil", SnapMode::Btrfs);
         assert!(gen_snapshot::<Btrfs>(&cfg, 42).is_err());
+    }
+
+    #[test]
+    fn btrfs_rollback_never_deletes_live_volume_first() {
+        // the replacement snapshot must be secured (snapshot -> tmp)
+        // BEFORE the live subvolume is deleted, and every step must be
+        // chained with && so a missing source aborts the whole swap
+        let cmd = Btrfs::rollback_cmd("/btrfs/data", 7);
+        let create = cmd.find("btrfs subvolume snapshot /btrfs/data@7").unwrap();
+        let delete_live = cmd.find("btrfs subvolume delete /btrfs/data ").unwrap();
+        assert!(create < delete_live);
+        assert!(!cmd.contains("2>/dev/null"));
+        assert!(!cmd.contains(';'));
     }
 
     #[test]

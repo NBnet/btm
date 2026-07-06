@@ -1,6 +1,6 @@
 use super::SnapDriver;
 use crate::BtmCfg;
-use ruc::{cmd::exec, *};
+use ruc::*;
 
 pub(crate) struct Zfs;
 
@@ -48,11 +48,8 @@ impl SnapDriver for Zfs {
         format!("zfs list {}", volume)
     }
 
-    /// Zfs batches all snapshot deletions into a single command.
-    fn destroy_snapshots(volume: &str, indexes: &[u64]) {
-        if indexes.is_empty() {
-            return;
-        }
-        info_omit!(exec(&batch_destroy_cmd(volume, indexes)));
+    /// Zfs batches snapshot deletions (chunked, with per-item fallback).
+    fn destroy_snapshots(volume: &str, indexes: &[u64]) -> Result<()> {
+        super::destroy_batched::<Self>(volume, indexes, batch_destroy_cmd)
     }
 }

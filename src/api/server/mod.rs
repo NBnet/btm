@@ -10,13 +10,14 @@ use ruc::{uau::UauSock, *};
 
 /// Run `btm daemon ...` server
 pub fn run_daemon(cfg: BtmCfg) -> Result<()> {
-    let s = pnk!(UauSock::new(SERVER_US_ADDR, None));
+    let s = UauSock::new(SERVER_US_ADDR, None).c(d!())?;
     loop {
-        if let Ok((msg, peer)) = s.recv_buf::<128>()
+        // errors are logged but never kill the daemon loop: a corrupt
+        // datagram or a vanished client must not stop future snapshots
+        if let Ok((msg, peer)) = info!(s.recv_buf::<128>())
             && let Ok(r) = info!(serde_json::from_slice::<Req>(&msg))
         {
             let success = info!(cfg.snapshot(r.idx())).is_ok();
-            // a vanished client must not kill the daemon loop
             info_omit!(s.send(&Resp::new(r.idx(), success).to_bytes(), &peer));
         }
     }
