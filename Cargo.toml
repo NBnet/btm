@@ -1,6 +1,6 @@
 [package]
 name = "btm"
-version = "3.0.0"
+version = "3.0.1"
 edition = "2024"
 keywords = ["vcs", "snapshot", "zfs", "btrfs"]
 license = "MIT"
