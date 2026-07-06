@@ -1,39 +1,44 @@
 use super::SnapDriver;
 use crate::BtmCfg;
 use ruc::*;
-use std::path::Path;
 
 pub(crate) struct Btrfs;
 
 impl SnapDriver for Btrfs {
     fn list_snapshots_cmd(cfg: &BtmCfg) -> String {
-        // `btrfs subvolume list` needs any path inside the filesystem;
-        // the parent directory of the volume always qualifies (fall
-        // back to the CWD for a bare relative name)
-        let parent = Path::new(&cfg.volume)
-            .parent()
-            .and_then(|p| p.to_str())
-            .filter(|p| !p.is_empty())
-            .unwrap_or(".");
-        format!("btrfs subvolume list -so {}", parent)
+        // enumerate snapshots in the same namespace the mutation
+        // commands use: they are created as filesystem-path siblings
+        // (`<volume>@<idx>`), so glob that exact pattern instead of
+        // translating `btrfs subvolume list` output, whose paths are
+        // relative to the filesystem toplevel — a mount-dependent
+        // namespace that cannot be matched reliably against the
+        // configured volume path.
+        //
+        // the leading volume check keeps the error semantics: the
+        // command fails when the volume is missing or not a btrfs
+        // subvolume, and succeeds with empty output when there are
+        // simply no snapshots yet (nullglob expands an unmatched
+        // pattern to nothing); `validate_volume` guarantees the
+        // volume contains no glob or shell metacharacters.
+        format!(
+            "{} >/dev/null && shopt -s nullglob && for s in {}@*; do printf '%s\\n' \"$s\"; done",
+            Self::check_volume_cmd(&cfg.volume),
+            &cfg.volume
+        )
     }
 
-    /// Lines look like `ID 256 gen 30 top level 5 path <subvol>@<idx>`.
-    /// Accept only entries whose subvolume basename matches the target
-    /// volume's basename and whose index is all digits; snapshots of
-    /// sibling subvolumes and manual snapshots are ignored.
+    /// Lines are plain paths; accept only `<volume>@<all-digits>` —
+    /// the exact paths `create_snapshot_cmd` produces. Snapshots of
+    /// other subvolumes (even ones sharing the volume's basename) and
+    /// manual snapshots are ignored.
+    ///
+    /// A foreign object that happens to live at `<volume>@<digits>`
+    /// is indistinguishable from a btm snapshot and will be counted;
+    /// this is the same trust boundary as the zfs driver. Rollback
+    /// stays safe even then: snapshotting a non-subvolume fails and
+    /// aborts the swap chain before the live volume is touched.
     fn parse_snapshot_line(cfg: &BtmCfg, line: &str) -> Option<u64> {
-        let path = line.rsplit_once(" path ")?.1.trim();
-        let (subvol, idx) = path.rsplit_once('@')?;
-        let vol_base = Path::new(&cfg.volume).file_name()?.to_str()?;
-        let sub_base = subvol.rsplit('/').next().unwrap_or(subvol);
-        if sub_base != vol_base {
-            return None;
-        }
-        if idx.is_empty() || !idx.bytes().all(|b| b.is_ascii_digit()) {
-            return None;
-        }
-        idx.parse().ok()
+        super::parse_exact_snapshot(&cfg.volume, line)
     }
 
     fn create_snapshot_cmd(volume: &str, idx: u64) -> String {

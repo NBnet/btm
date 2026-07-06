@@ -48,6 +48,18 @@ pub(crate) trait SnapDriver {
     }
 }
 
+/// Shared strict snapshot parser: accept only `<volume>@<all-digits>`,
+/// the exact form `create_snapshot_cmd` produces. Anything else
+/// (manual snapshots, other volumes — even ones sharing the target's
+/// basename) belongs to someone else and yields `None`.
+pub(crate) fn parse_exact_snapshot(volume: &str, line: &str) -> Option<u64> {
+    let idx = line.trim().strip_prefix(volume)?.strip_prefix('@')?;
+    if idx.is_empty() || !idx.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    idx.parse().ok()
+}
+
 /// Upper bound of snapshots deleted per shell command; keeps command
 /// lines far below ARG_MAX even with long volume paths.
 const DESTROY_BATCH_LIMIT: usize = 64;
@@ -368,21 +380,24 @@ mod tests {
         let cfg = cfg_with_volume("/btrfs/data", SnapMode::Btrfs);
         let parse = |l| Btrfs::parse_snapshot_line(&cfg, l);
 
-        assert_eq!(Some(123), parse("ID 256 gen 30 top level 5 path data@123"));
-        assert_eq!(
-            Some(77),
-            parse("ID 256 gen 30 top level 5 path nested/data@77")
-        );
+        assert_eq!(Some(123), parse("/btrfs/data@123"));
 
-        // snapshots of sibling subvolumes must not match
-        assert_eq!(None, parse("ID 256 gen 30 top level 5 path other@123"));
+        // snapshots of OTHER subvolumes must not match, even when
+        // they share the target volume's basename
+        assert_eq!(None, parse("/btrfs/stuff/data@77"));
+        assert_eq!(None, parse("/other/data@123"));
+        assert_eq!(None, parse("/btrfs/other@123"));
+
+        // snapshots of child subvolumes are not ours
+        assert_eq!(None, parse("/btrfs/data/child@449"));
 
         // manual snapshots must not become phantom numeric entries
-        assert_eq!(
-            None,
-            parse("ID 256 gen 30 top level 5 path data@2026-predeploy")
-        );
+        assert_eq!(None, parse("/btrfs/data@2026-predeploy"));
 
+        // no sign prefixes, no overflow, no empty index
+        assert_eq!(None, parse("/btrfs/data@+449"));
+        assert_eq!(None, parse("/btrfs/data@99999999999999999999999999"));
+        assert_eq!(None, parse("/btrfs/data@"));
         assert_eq!(None, parse("garbage"));
         assert_eq!(None, parse(""));
     }
@@ -417,17 +432,28 @@ mod tests {
 
         let cfg = cfg_with_volume("/btrfs/data", SnapMode::Btrfs);
         assert_eq!(
-            "btrfs subvolume list -so /btrfs",
+            "btrfs subvolume show /btrfs/data >/dev/null \
+             && shopt -s nullglob \
+             && for s in /btrfs/data@*; do printf '%s\\n' \"$s\"; done",
             Btrfs::list_snapshots_cmd(&cfg)
         );
         assert!(!Btrfs::check_volume_cmd("/btrfs/data").contains("create"));
 
-        // a bare relative volume name must probe the CWD, not "/"
+        // listing must address the volume itself, never a derived
+        // parent path: a volume that IS the mountpoint used to probe
+        // "/", which may not be btrfs at all
+        let cfg = cfg_with_volume("/btrfs", SnapMode::Btrfs);
+        let cmd = Btrfs::list_snapshots_cmd(&cfg);
+        assert!(cmd.contains("btrfs subvolume show /btrfs "));
+        assert!(cmd.contains("/btrfs@*"));
+        assert!(!cmd.contains("list"));
+
+        // a bare relative volume name works unchanged (glob relative
+        // to the CWD), with no parent derivation involved
         let cfg = cfg_with_volume("data", SnapMode::Btrfs);
-        assert_eq!(
-            "btrfs subvolume list -so .",
-            Btrfs::list_snapshots_cmd(&cfg)
-        );
+        let cmd = Btrfs::list_snapshots_cmd(&cfg);
+        assert!(cmd.contains("btrfs subvolume show data "));
+        assert!(cmd.contains("data@*"));
     }
 
     #[test]

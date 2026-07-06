@@ -25,11 +25,7 @@ impl SnapDriver for Zfs {
     /// Accept only `<volume>@<all-digits>`; anything else (manual
     /// snapshots, child datasets) belongs to someone else.
     fn parse_snapshot_line(cfg: &BtmCfg, line: &str) -> Option<u64> {
-        let idx = line.trim().strip_prefix(&format!("{}@", &cfg.volume))?;
-        if idx.is_empty() || !idx.bytes().all(|b| b.is_ascii_digit()) {
-            return None;
-        }
-        idx.parse().ok()
+        super::parse_exact_snapshot(&cfg.volume, line)
     }
 
     fn create_snapshot_cmd(volume: &str, idx: u64) -> String {
