@@ -1,22 +1,27 @@
 use super::SnapDriver;
 use crate::BtmCfg;
-use ruc::*;
 
 pub(crate) struct Zfs;
 
 impl SnapDriver for Zfs {
-    fn list_snapshots_cmd(cfg: &BtmCfg) -> Result<String> {
-        Ok(format!(
-            r"zfs list -t snapshot -r {} | grep -o '@[0-9]\+' | sed 's/@//'",
-            &cfg.volume
-        ))
+    fn list_snapshots_cmd(cfg: &BtmCfg) -> String {
+        // `-d 1` limits the scope to the dataset itself, keeping
+        // snapshots of child datasets out of the result
+        format!("zfs list -H -t snapshot -d 1 -o name {}", &cfg.volume)
+    }
+
+    /// Accept only `<volume>@<all-digits>`; anything else (manual
+    /// snapshots, child datasets) belongs to someone else.
+    fn parse_snapshot_line(cfg: &BtmCfg, line: &str) -> Option<u64> {
+        let idx = line.trim().strip_prefix(&format!("{}@", &cfg.volume))?;
+        if idx.is_empty() || !idx.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        idx.parse().ok()
     }
 
     fn create_snapshot_cmd(volume: &str, idx: u64) -> String {
-        format!(
-            "zfs destroy {0}@{1} 2>/dev/null; zfs snapshot {0}@{1}",
-            volume, idx
-        )
+        format!("zfs snapshot {}@{}", volume, idx)
     }
 
     fn rollback_cmd(volume: &str, idx: u64) -> String {
@@ -28,24 +33,6 @@ impl SnapDriver for Zfs {
     }
 
     fn check_volume_cmd(volume: &str) -> String {
-        format!("zfs list -r {0} || zfs create {0}", volume)
+        format!("zfs list {}", volume)
     }
-}
-
-#[inline(always)]
-pub(crate) fn gen_snapshot(cfg: &BtmCfg, idx: u64) -> Result<()> {
-    super::gen_snapshot::<Zfs>(cfg, idx)
-}
-
-pub(crate) fn sorted_snapshots(cfg: &BtmCfg) -> Result<Vec<u64>> {
-    super::sorted_snapshots::<Zfs>(cfg)
-}
-
-pub(crate) fn rollback(cfg: &BtmCfg, idx: Option<i128>, strict: bool) -> Result<()> {
-    super::rollback::<Zfs>(cfg, idx, strict)
-}
-
-#[inline(always)]
-pub(crate) fn check(volume: &str) -> Result<()> {
-    super::check::<Zfs>(volume)
 }

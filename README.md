@@ -8,9 +8,18 @@
 
 Blockchain Time Machine.
 
-**NOTE: BTM is designed for Linux. On other platforms, it only supports compilation for verification.**
+**NOTE: BTM is designed for Linux. On other platforms the crate still compiles for embedding: `BtmCfg::snapshot()` degrades to a no-op, while rollback/list/clean fail at runtime instead of pretending to succeed.**
 
 BTM is an incremental data backup mechanism that does not require downtime.
+
+## What's new in v3.0.0
+
+- `snapshot()` flushes only the target volume's filesystem (`syncfs`) instead of a global `sync`, falling back to the global sync when the mountpoint cannot be resolved
+- snapshot listings are parsed strictly (`<volume>@<all-digits>`): manual snapshots, child datasets, and sibling subvolumes are never counted, cleaned, or rolled back
+- `SnapMode::guess()` is read-only — the target volume is no longer created as a side effect of probing
+- the crate compiles on non-Linux platforms (`snapshot()` is a no-op there); the daemon/UAU API remains Linux-only
+- `clean_snapshots()` goes through the snapshot driver (btrfs deletions are batched again)
+- dependencies upgraded: `ruc` 11.0, `nix` 0.31
 
 ## Why would you need this?
 

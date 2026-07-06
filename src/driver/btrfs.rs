@@ -1,25 +1,41 @@
 use super::SnapDriver;
 use crate::BtmCfg;
 use ruc::{cmd::exec, *};
-use std::path::PathBuf;
+use std::path::Path;
 
 pub(crate) struct Btrfs;
 
 impl SnapDriver for Btrfs {
-    fn list_snapshots_cmd(cfg: &BtmCfg) -> Result<String> {
-        let path = PathBuf::from(&cfg.volume);
-        let parent = path.parent().c(d!())?.to_str().c(d!())?;
-        Ok(format!(
-            r"btrfs subvolume list -so {} | grep -o '@[0-9]\+$' | sed 's/@//'",
-            parent
-        ))
+    fn list_snapshots_cmd(cfg: &BtmCfg) -> String {
+        // `btrfs subvolume list` needs any path inside the filesystem;
+        // the parent directory of the volume always qualifies
+        let parent = Path::new(&cfg.volume)
+            .parent()
+            .and_then(|p| p.to_str())
+            .unwrap_or("/");
+        format!("btrfs subvolume list -so {}", parent)
+    }
+
+    /// Lines look like `ID 256 gen 30 top level 5 path <subvol>@<idx>`.
+    /// Accept only entries whose subvolume basename matches the target
+    /// volume's basename and whose index is all digits; snapshots of
+    /// sibling subvolumes and manual snapshots are ignored.
+    fn parse_snapshot_line(cfg: &BtmCfg, line: &str) -> Option<u64> {
+        let path = line.rsplit_once(" path ")?.1.trim();
+        let (subvol, idx) = path.rsplit_once('@')?;
+        let vol_base = Path::new(&cfg.volume).file_name()?.to_str()?;
+        let sub_base = subvol.rsplit('/').next().unwrap_or(subvol);
+        if sub_base != vol_base {
+            return None;
+        }
+        if idx.is_empty() || !idx.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        idx.parse().ok()
     }
 
     fn create_snapshot_cmd(volume: &str, idx: u64) -> String {
-        format!(
-            "btrfs subvolume delete {0}@{1} 2>/dev/null; btrfs subvolume snapshot {0} {0}@{1}",
-            volume, idx
-        )
+        format!("btrfs subvolume snapshot {0} {0}@{1}", volume, idx)
     }
 
     fn rollback_cmd(volume: &str, idx: u64) -> String {
@@ -34,10 +50,7 @@ impl SnapDriver for Btrfs {
     }
 
     fn check_volume_cmd(volume: &str) -> String {
-        format!(
-            "btrfs subvolume list {0} || btrfs subvolume create {0}",
-            volume
-        )
+        format!("btrfs subvolume show {}", volume)
     }
 
     /// Btrfs batches all snapshot deletions into a single command.
@@ -53,22 +66,4 @@ impl SnapDriver for Btrfs {
         let cmd = format!("btrfs subvolume delete {}", list);
         info_omit!(exec(&cmd));
     }
-}
-
-#[inline(always)]
-pub(crate) fn gen_snapshot(cfg: &BtmCfg, idx: u64) -> Result<()> {
-    super::gen_snapshot::<Btrfs>(cfg, idx)
-}
-
-pub(crate) fn sorted_snapshots(cfg: &BtmCfg) -> Result<Vec<u64>> {
-    super::sorted_snapshots::<Btrfs>(cfg)
-}
-
-pub(crate) fn rollback(cfg: &BtmCfg, idx: Option<i128>, strict: bool) -> Result<()> {
-    super::rollback::<Btrfs>(cfg, idx, strict)
-}
-
-#[inline(always)]
-pub(crate) fn check(volume: &str) -> Result<()> {
-    super::check::<Btrfs>(volume)
 }
