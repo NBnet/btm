@@ -1,10 +1,10 @@
 # Audit Findings
 
-> Auto-managed by /x-review and /x-fix.
+> Auto-managed by $x-review and $x-fix.
 
 ## Open
 
-*(none)*
+*(No open findings)*
 
 ---
 

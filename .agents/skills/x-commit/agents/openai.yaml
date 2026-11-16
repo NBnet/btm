@@ -1,0 +1,6 @@
+interface:
+  display_name: "BTM Self-Reviewing Commit"
+  short_description: "Review, fix, format, version-bump, and commit btm changes"
+
+policy:
+  allow_implicit_invocation: false
