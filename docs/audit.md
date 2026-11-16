@@ -10,8 +10,10 @@
 
 ## Won't Fix
 
+> Rechecked after the nix 0.32 / ruc 11.0.3 bump. The rollback command is unchanged.
+
 ### [LOW] driver: two rollbacks of the same volume share one temp name
-- **Where**: `Btrfs::rollback_cmd` uses `<volume>.btm-rollback-tmp`
+- **Where**: `src/driver/btrfs.rs` `Btrfs::rollback_cmd` (`<volume>.btm-rollback-tmp`)
 - **What**: Overlapping rollback calls can delete each other's temp subvolume.
 - **Reason**: The library does not take a volume lock. Callers serialize snapshot and rollback on a volume. A unique temp name would still race with `mv` onto the live path.
 
