@@ -38,7 +38,10 @@ btm will give you the following abilities or advantages:
 use btm::{BtmCfg, SnapMode, SnapAlgo};
 
 let cfg = BtmCfg {
-    itv: 10,
+    // itv = 1 snapshots every index. With itv > 1, only indexes aligned
+    // to that interval (anchored at u64::MAX) create a snapshot; the
+    // others return Ok(()) and do nothing.
+    itv: 1,
     cap: 100,
     cap_clean_kept: 0,
     mode: SnapMode::Zfs,
@@ -46,7 +49,6 @@ let cfg = BtmCfg {
     volume: "zroot/data".to_owned(),
 };
 
-// Generate snapshots in some threads.
 cfg.snapshot(0).unwrap();
 cfg.snapshot(1).unwrap();
 cfg.snapshot(11).unwrap();
@@ -143,12 +145,11 @@ su # swith your user account to 'root'
 ```
 ● btm-daemon.service - "btm daemon"
      Loaded: loaded (/lib/systemd/system/btm-daemon.service; enabled; vendor preset: disabled)
-     Active: active (running) since Tue 2021-10-12 21:24:16 CST; 2min 27s ago
+     Active: active (running)
    Main PID: 334 (btm)
-      Tasks: 1 (limit: 37805)
-        CPU: 1ms
+      Tasks: 1
      CGroup: /system.slice/btm-daemon.service
-             └─334 /usr/local/bin/btm daemon -p=/data -i=4 -c=100 -m=btrfs -a=fade
+             └─334 /usr/local/bin/btm daemon -p=zfs/data -i=4 -c=100 -m=zfs -a=fade
 ```
 
 **Usage of [tools/install.sh](./tools/install.sh):**
