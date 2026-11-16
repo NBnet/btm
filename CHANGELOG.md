@@ -1,5 +1,9 @@
 # Change logs
 
+#### v3.0.2
+
+- The external snapshot client ignores a datagram for a different index instead of failing the request.
+
 #### v3.0.1
 
 - Btrfs snapshot listing uses the configured volume path. Sibling subvolumes are not counted, cleaned, or rolled back.

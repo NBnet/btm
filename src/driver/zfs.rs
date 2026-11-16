@@ -19,7 +19,7 @@ impl SnapDriver for Zfs {
     fn list_snapshots_cmd(cfg: &BtmCfg) -> String {
         // `-d 1` limits the scope to the dataset itself, keeping
         // snapshots of child datasets out of the result
-        format!("zfs list -H -t snapshot -d 1 -o name {}", &cfg.volume)
+        format!("zfs list -H -t snapshot -d 1 -o name {}", cfg.volume)
     }
 
     /// Accept only `<volume>@<all-digits>`; anything else (manual

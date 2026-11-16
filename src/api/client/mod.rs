@@ -15,13 +15,55 @@ pub(crate) fn request_snapshot(idx: u64) -> Result<()> {
     for _ in 0..20 {
         if let Ok(resp) = cli.recvonly_buf::<128>() {
             let r = serde_json::from_slice::<Resp>(&resp).c(d!())?;
-            if r.success() && r.idx() == idx {
-                return Ok(());
-            } else {
-                return Err(eg!("snapshot failed"));
+            match classify_snapshot_resp(idx, &r) {
+                SnapshotReply::Done => return Ok(()),
+                SnapshotReply::Failed => return Err(eg!("snapshot failed")),
+                SnapshotReply::Ignore => {}
             }
         }
     }
 
     Err(eg!("snapshot failed"))
+}
+
+enum SnapshotReply {
+    Done,
+    Failed,
+    /// A datagram for a different index. Keep waiting.
+    Ignore,
+}
+
+fn classify_snapshot_resp(expected: u64, resp: &Resp) -> SnapshotReply {
+    if resp.idx() != expected {
+        return SnapshotReply::Ignore;
+    }
+    if resp.success() {
+        SnapshotReply::Done
+    } else {
+        SnapshotReply::Failed
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stale_response_is_not_this_request() {
+        let other = Resp::new(1, false);
+        assert!(matches!(
+            classify_snapshot_resp(2, &other),
+            SnapshotReply::Ignore
+        ));
+        let ok = Resp::new(2, true);
+        assert!(matches!(
+            classify_snapshot_resp(2, &ok),
+            SnapshotReply::Done
+        ));
+        let failed = Resp::new(2, false);
+        assert!(matches!(
+            classify_snapshot_resp(2, &failed),
+            SnapshotReply::Failed
+        ));
+    }
 }

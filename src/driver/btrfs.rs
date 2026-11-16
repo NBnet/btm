@@ -23,7 +23,7 @@ impl SnapDriver for Btrfs {
         format!(
             "{} >/dev/null && shopt -s nullglob && for s in {}@*; do printf '%s\\n' \"$s\"; done",
             Self::check_volume_cmd(&cfg.volume),
-            &cfg.volume
+            cfg.volume
         )
     }
 

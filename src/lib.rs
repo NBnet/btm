@@ -184,7 +184,7 @@ impl BtmCfg {
         {
             let synced = match self.mode {
                 SnapMode::Zfs => {
-                    cmd::exec(&format!("zfs get -H -o value mountpoint {}", &self.volume))
+                    cmd::exec(&format!("zfs get -H -o value mountpoint {}", self.volume))
                         .ok()
                         .map(|mp| mp.trim().to_owned())
                         .filter(|mp| mp.starts_with('/'))
