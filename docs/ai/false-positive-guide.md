@@ -15,9 +15,10 @@ Before reporting any finding, check it against this guide.
 **Pattern**: Reporting that `snapshot()` returns `Ok(())` on platforms other
 than Linux.
 **Rule**: That no-op is intentional so callers can leave the call on the hot
-path. Rollback, list, and clean must still fail on those platforms. Report
-only if a destructive or query operation pretends to succeed off Linux, or
-if `snapshot()` starts shelling out there.
+path. Rollback, list, and clean are not platform-gated; ZFS and Btrfs
+shell out, and `External` returns an error. Report only if `snapshot()`
+starts shelling out off Linux, or if ZFS/Btrfs rollback returns `Ok(())`
+without running a command.
 
 ## FP-3: Retention Cleanup Failure Does Not Abort the Snapshot
 
@@ -47,9 +48,11 @@ local zfs/btrfs command while `mode` is `External`.
 ## FP-6: Global `sync(2)` Fallback
 
 **Pattern**: Reporting that `sync_volume` falls back to `nix::unistd::sync`.
-**Rule**: The fallback is intentional when the mountpoint cannot be
-resolved. Report only if a resolved mountpoint is ignored, or if the
-snapshot proceeds with no flush attempt at all.
+**Rule**: ZFS falls back when the mountpoint is not absolute or `syncfs`
+fails. Btrfs falls back when `syncfs` on the volume path fails.
+`External` always uses the global sync. Report only if a successful
+scoped `syncfs` is ignored, or if the snapshot proceeds with no flush
+attempt on Linux.
 
 ## FP-7: Unwrap/Expect on Known-Valid State
 

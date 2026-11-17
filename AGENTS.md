@@ -50,8 +50,9 @@ make test         # cargo test -- --test-threads=1
 
 The crate root is `#![deny(warnings)]` and `#![deny(missing_docs)]`.
 Snapshot orchestration needs Linux zfs/btrfs tooling. On other platforms
-the library still compiles: `snapshot()` is a no-op, and rollback, list,
-and clean fail at runtime.
+the library still compiles: `snapshot()` validates, warns once, and
+returns `Ok(())`. Rollback, list, and clean are not platform-gated.
+The non-Linux binary prints a warning and exits 0.
 
 ## Conventions
 

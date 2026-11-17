@@ -112,13 +112,16 @@ may fall back per index.
 
 ### 5.1 Off-Linux Path Shells Out or Pretends a Rollback Worked
 
-**Pattern**: `cfg!(not(target_os = "linux"))` is missing on `snapshot`, or
-rollback/list/clean return `Ok` without a driver.
-**Where**: `BtmCfg::snapshot` and the match arms for rollback, list, clean.
+**Pattern**: `cfg!(not(target_os = "linux"))` is missing on `snapshot`, so
+a non-Linux caller shells out, or `snapshot()` returns `Ok` after a real
+snapshot command failed.
+**Where**: `BtmCfg::snapshot`. Rollback, list, and clean have no platform
+gate.
 **Impact**: A macOS or Windows embedder believes a backup exists.
 **Check**: Non-Linux `snapshot()` validates, warns once, and returns
-`Ok(())`. The other operations stay `Err`. `External` is Linux-only and
-does not build local zfs/btrfs commands.
+`Ok(())` before `sync_volume`. Rollback, list, and clean still run the
+ZFS or Btrfs commands. `External` returns `Err` for those three on every
+OS. The non-Linux binary does not call them.
 
 ### 5.2 Daemon Dies on One Bad Datagram
 

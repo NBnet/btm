@@ -14,9 +14,10 @@
 //!
 //! Snapshot orchestration requires Linux (zfs/btrfs tooling). On other
 //! platforms the crate still compiles so that cross-platform callers can
-//! embed it unconditionally: [`BtmCfg::snapshot`] degrades to a no-op,
-//! while destructive/query operations (rollback, list, clean) fail at
-//! runtime instead of pretending to succeed.
+//! embed it unconditionally: [`BtmCfg::snapshot`] validates, warns once,
+//! and returns `Ok(())`. Rollback, list, and clean are not platform-gated.
+//! ZFS and Btrfs still shell out. `External` returns an error for those
+//! three. The non-Linux `btm` binary prints a warning and exits 0.
 //!
 //! ## Index semantics for non-blockchain callers
 //!
@@ -177,8 +178,10 @@ impl BtmCfg {
     ///
     /// Prefer `syncfs(2)` scoped to the volume's filesystem — a global
     /// `sync(2)` on a busy host stalls on every other filesystem's dirty
-    /// pages. Fall back to the global sync when the volume's mountpoint
-    /// cannot be resolved.
+    /// pages. ZFS falls back when the mountpoint is not an absolute path
+    /// or `syncfs` fails. Btrfs calls `syncfs` on `volume` and falls back
+    /// on failure. `External` always uses the global sync. Off Linux this
+    /// function is empty; `snapshot` returns before calling it.
     fn sync_volume(&self) {
         #[cfg(target_os = "linux")]
         {
@@ -290,16 +293,18 @@ fn syncfs_path(path: &str) -> Result<()> {
 /// zfs rollback -r zfs/data@123456
 ///
 /// # btrfs filesystem
-/// rm -rf /btrfs/data || exit 1
-/// btrfs subvolume snapshot /btrfs/data@123456 /btrfs/data
+/// # snapshot the backup aside, then swap it into place
+/// [ ! -d /btrfs/data.btm-rollback-tmp ] || btrfs subvolume delete /btrfs/data.btm-rollback-tmp
+/// btrfs subvolume snapshot /btrfs/data@123456 /btrfs/data.btm-rollback-tmp
+/// btrfs subvolume delete /btrfs/data
+/// mv /btrfs/data.btm-rollback-tmp /btrfs/data
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub enum SnapMode {
-    /// Available on some Linux distributions and FreeBSD
+    /// ZFS command strings. Snapshot creation runs only on Linux;
+    /// `snapshot()` is a no-op on every other OS, including FreeBSD.
     /// - Ubuntu Linux
     /// - Gentoo Linux
-    /// - FreeBSD
-    /// - ...
     Zfs,
     /// Available on most Linux distributions,
     /// but its user experience is worse than zfs

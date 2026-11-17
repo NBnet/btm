@@ -3,6 +3,7 @@
 #### v3.0.2
 
 - The external snapshot client ignores a datagram for a different index instead of failing the request.
+- Dependencies in this tree: `ruc` 11.0.3, `nix` 0.32.0. Build with the current stable toolchain.
 
 #### v3.0.1
 
@@ -10,13 +11,13 @@
 
 #### v3.0.0
 
-- `snapshot()` flushes the target volume with `syncfs` and falls back to a global `sync` when the mountpoint cannot be resolved
+- `snapshot()` prefers a scoped `syncfs` and falls back to a global `sync` when that flush is skipped or fails
 - Snapshot listings accept only `<volume>@<all-digits>`
 - `SnapMode::guess()` no longer creates the target volume
-- The library compiles off Linux: `snapshot()` is a no-op there, and rollback, list, and clean fail
+- The library compiles off Linux: `snapshot()` is a no-op there. Rollback, list, and clean are not platform-gated
 - `clean_snapshots()` goes through the snapshot driver; ZFS and Btrfs deletions are batched
 - Volume shell-safety and numeric parameters are validated at every operation entry point
-- Dependencies: `ruc` 11.0, `nix` 0.31
+- Dependencies at that release: `ruc` 11.0, `nix` 0.31. The 3.0.2 tree uses `ruc` 11.0.3 and `nix` 0.32.0
 
 #### v2.0.0
 

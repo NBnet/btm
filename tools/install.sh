@@ -38,11 +38,11 @@ usage() {
     echo -e "\033[31;01mUsage\033[0m"
     echo
     echo -e "\tinstall.sh"
-    echo -e "\t\t--snapshot-itv=<ITV>"
-    echo -e "\t\t--snapshot-cap=<CAP>"
-    echo -e "\t\t--snapshot-mode=<MODE>"
-    echo -e "\t\t--snapshot-algo=<ALGO>"
-    echo -e "\t\t--snapshot-volume=<VOLUME>"
+    echo -e "\t\t--snapshot-itv=<ITV>      optional, default 10"
+    echo -e "\t\t--snapshot-cap=<CAP>      optional, default 100"
+    echo -e "\t\t--snapshot-mode=<MODE>    required, zfs or btrfs"
+    echo -e "\t\t--snapshot-algo=<ALGO>    optional, default fair"
+    echo -e "\t\t--snapshot-volume=<VOLUME> required"
 
     echo
 

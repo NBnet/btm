@@ -86,7 +86,8 @@ For each HIGH or CRITICAL change:
 
 **Platform:**
 - Off Linux, `snapshot()` returns `Ok(())` after validation and does not
-  shell out. Rollback, list, and clean return errors.
+  shell out. Rollback, list, and clean are not platform-gated. The
+  non-Linux binary exits 0 without calling them.
 - `External` snapshot goes through the daemon client. Rollback, list, and
   clean error. The `btm` binary refuses to run as an `External` daemon.
 

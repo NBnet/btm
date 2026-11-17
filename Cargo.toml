@@ -6,8 +6,8 @@ keywords = ["vcs", "snapshot", "zfs", "btrfs"]
 license = "MIT"
 authors = ["hui.fan@mail.ru"]
 description = "Blockchain Time Machine"
-homepage = "https://github.com/rust-util-collections/btm"
-repository = "https://github.com/rust-util-collections/btm"
+homepage = "https://github.com/NBnet/btm"
+repository = "https://github.com/NBnet/btm"
 
 [dependencies]
 ruc = { version = "11.0.3", features = ["cmd", "uau"] }
